@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>F5HLIVE · Live Studio (WebRTC Simulcast)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#000;--fg:#fff;--muted:#a1a1aa;--dim:#52525b;
+  --accent:#8b5cf6;--accent-h:#7c3aed;
+  --danger:#ef4444;--danger-h:#dc2626;
+  --success:#10b981;--warn:#f59e0b;
+  --simulcast:#6366f1;
+}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
+body{position:relative}
+
+/* ====== VIDEO PREVIEW ====== */
+#preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;transform:scaleX(-1);z-index:1}
+
+/* ====== OVERLAY (initial camera-off) ====== */
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:rgba(0,0,0,.88);z-index:50;transition:opacity .3s}
+.overlay.hidden{opacity:0;pointer-events:none}
+.overlay-icon{font-size:4rem;color:var(--accent);opacity:.85}
+.overlay h1{font-size:1.4rem;font-weight:700;letter-spacing:.3px}
+.overlay p{font-size:.82rem;color:var(--muted);text-align:center;max-width:360px;line-height:1.5}
+.btn-start{width:84px;height:84px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:2.4rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 8px 32px rgba(139,92,246,.4)}
+.btn-start:hover{background:var(--accent-h);transform:scale(1.08)}
+.btn-start:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ====== TOP BAR (over video) ====== */
+.top-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:16px;z-index:20;background:linear-gradient(to bottom,rgba(0,0,0,.7) 0%,transparent 100%);pointer-events:none}
+.top-bar>*{pointer-events:auto}
+.badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--fg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .3s}
+.badge.live{background:var(--danger);border-color:var(--danger);opacity:0}
+.badge.live.visible{opacity:1;animation:pulse 2s infinite}
+.badge.simulcast{background:rgba(99,102,241,.25);border-color:var(--simulcast);color:#c7d2fe}
+.badge.simulcast::before{content:'';width:6px;height:6px;background:#22d3ee;border-radius:50%;box-shadow:0 0 6px #22d3ee}
+.badge.cam{color:var(--muted)}
+.badge.cam.on{color:var(--success);border-color:rgba(16,185,129,.4)}
+.badge.cam i{font-size:.85rem}
+.badge.mic{color:var(--muted)}
+.badge.mic.on{color:var(--success);border-color:rgba(16,185,129,.4)}
+.badge.mic.off{color:var(--danger);border-color:rgba(239,68,68,.4)}
+.badge.view-status{color:var(--muted)}
+.badge.view-status.on{color:var(--success);border-color:rgba(16,185,129,.4)}
+.badge.view-status::before{content:'';width:6px;height:6px;background:var(--danger);border-radius:50%}
+.badge.view-status.on::before{background:var(--success);box-shadow:0 0 6px var(--success)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+.top-actions{display:flex;gap:8px;align-items:center}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.05rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .2s}
+.icon-btn:hover{background:rgba(139,92,246,.25);color:var(--fg);border-color:var(--accent)}
+.icon-btn.on{color:var(--success);border-color:rgba(16,185,129,.4)}
+.icon-btn.live-on{color:var(--danger);border-color:var(--danger);background:rgba(239,68,68,.15)}
+
+/* ====== STATS PILL (top-right, below top-bar) ====== */
+.stats-pill{position:absolute;top:70px;right:16px;z-index:18;display:flex;gap:6px;padding:8px 12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:.72rem;color:var(--muted);font-family:'JetBrains Mono','SF Mono',monospace;opacity:0;transition:opacity .3s;pointer-events:none}
+.stats-pill.visible{opacity:1}
+.stats-pill .stat{display:flex;align-items:center;gap:4px}
+.stats-pill .stat i{font-size:.85rem}
+.stats-pill .stat strong{color:var(--fg);font-weight:700}
+.stats-pill .stat.on strong{color:var(--success)}
+.stats-pill .stat.off strong{color:var(--danger)}
+.stats-pill .sep{color:var(--dim)}
+
+/* ====== CONTROLS (bottom) ====== */
+.controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:14px;padding:22px;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.4) 60%,transparent 100%);z-index:20;transition:opacity .3s}
+.controls.hidden{opacity:0;pointer-events:none}
+.ctrl-btn{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.35rem;color:#fff;transition:all .2s;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ctrl-btn:hover:not(:disabled){background:rgba(255,255,255,.2);transform:scale(1.08)}
+.ctrl-btn.primary{width:72px;height:72px;font-size:1.85rem;background:var(--accent);box-shadow:0 6px 24px rgba(139,92,246,.45)}
+.ctrl-btn.primary:hover:not(:disabled){background:var(--accent-h)}
+.ctrl-btn.primary.live{background:var(--danger);box-shadow:0 6px 24px rgba(239,68,68,.5)}
+.ctrl-btn.primary.live:hover:not(:disabled){background:var(--danger-h)}
+.ctrl-btn.danger{background:rgba(239,68,68,.85)}
+.ctrl-btn.on{background:rgba(16,185,129,.85)}
+.ctrl-btn.off{background:rgba(239,68,68,.85)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+.bitrate-wrap{position:relative}
+.bitrate-btn{height:52px;padding:0 18px;border-radius:26px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.5);color:var(--fg);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .2s;font-family:inherit}
+.bitrate-btn:hover{background:rgba(139,92,246,.25);border-color:var(--accent)}
+.bitrate-btn i{font-size:1rem;color:var(--muted)}
+.bitrate-menu{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid #3f3f46;border-radius:10px;padding:6px;min-width:180px;display:none;z-index:30;box-shadow:0 10px 32px rgba(0,0,0,.5)}
+.bitrate-menu.open{display:block}
+.bitrate-item{padding:9px 14px;border-radius:6px;cursor:pointer;font-size:.82rem;color:var(--fg);display:flex;justify-content:space-between;align-items:center;transition:background .15s}
+.bitrate-item:hover{background:rgba(139,92,246,.2)}
+.bitrate-item.active{background:rgba(139,92,246,.25);color:#c4b5fd}
+.bitrate-item small{color:var(--muted);font-size:.7rem}
+
+/* ====== CHAT SIDEBAR (slide-in right) ====== */
+.chat-toggle{position:absolute;top:50%;right:0;transform:translateY(-50%);width:36px;height:64px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.15);border-right:none;border-radius:10px 0 0 10px;color:var(--fg);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:25;transition:all .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.chat-toggle:hover{background:rgba(139,92,246,.3)}
+.chat-toggle i{font-size:1.1rem}
+.chat-toggle .count{position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;font-size:.6rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.chat-sidebar{position:absolute;top:0;right:0;bottom:0;width:340px;background:#0a0a0c;border-left:1px solid #1f1f23;display:flex;flex-direction:column;z-index:35;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.chat-sidebar.open{transform:translateX(0)}
+.chat-header{padding:16px;border-bottom:1px solid #1f1f23;display:flex;justify-content:space-between;align-items:center}
+.chat-header h3{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.chat-header h3 i{color:var(--accent)}
+.chat-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px;border-radius:6px;transition:all .15s}
+.chat-close:hover{color:var(--fg);background:rgba(255,255,255,.06)}
+.chat-status-dot{width:8px;height:8px;border-radius:50%;background:#555;transition:all .3s}
+.chat-status-dot.online{background:var(--success);box-shadow:0 0 6px var(--success)}
+.chat-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.chat-scroll::-webkit-scrollbar{width:6px}
+.chat-scroll::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+.msg{font-size:.85rem;line-height:1.4;word-wrap:break-word;animation:popIn .25s ease-out}
+@keyframes popIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg .user{font-weight:700;margin-right:6px;font-size:.78rem}
+.msg.me{align-self:flex-end;background:#1f1f23;padding:8px 12px;border-radius:14px;border-bottom-right-radius:4px;max-width:88%}
+.msg.me .user{color:var(--accent);display:block;margin-bottom:2px;text-align:right}
+.msg.other .user{color:#a3e635}
+.chat-input-wrap{padding:14px;border-top:1px solid #1f1f23;background:#0a0a0c}
+.chat-box{display:flex;gap:6px;background:#09090b;border:1px solid #27272a;padding:6px;border-radius:24px;transition:border-color .2s}
+.chat-box:focus-within{border-color:var(--accent)}
+.chat-field{flex:1;background:transparent;border:none;color:#fff;padding:6px 4px;font-size:.85rem;font-family:inherit;outline:none}
+.chat-field::placeholder{color:#555}
+.send-btn{background:var(--accent);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem;transition:background .2s}
+.send-btn:hover{background:var(--accent-h)}
+
+/* ====== MODAL (settings + logs) ====== */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.modal-bg.visible{display:flex}
+.modal{background:#0f0f12;border:1px solid #27272a;border-radius:14px;padding:24px;width:92%;max-width:440px;max-height:85vh;display:flex;flex-direction:column}
+.modal.wide{max-width:720px}
+.modal h2{font-size:1.05rem;margin-bottom:6px;font-weight:700;display:flex;align-items:center;gap:8px}
+.modal h2 i{color:var(--accent)}
+.modal .modal-sub{font-size:.72rem;color:var(--dim);margin-bottom:18px;font-family:monospace;word-break:break-all}
+.modal label{display:block;font-size:.68rem;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;margin-top:14px}
+.modal input,.modal select{width:100%;padding:10px 12px;background:#1a1a1e;border:1px solid #2a2a2e;border-radius:8px;color:#fff;font-size:.85rem;font-family:monospace;transition:border-color .15s}
+.modal input:focus,.modal select:focus{outline:none;border-color:var(--accent)}
+.modal select{font-family:inherit;cursor:pointer}
+.modal-actions{display:flex;gap:10px;margin-top:22px}
+.modal-actions button{flex:1;padding:11px;border:none;border-radius:8px;font-size:.83rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.btn-cancel{background:#1f1f23;color:var(--muted)}
+.btn-cancel:hover{background:#27272a;color:var(--fg)}
+.btn-confirm{background:var(--accent);color:#fff}
+.btn-confirm:hover{background:var(--accent-h)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{background:var(--danger-h)}
+
+/* ====== LOGS MODAL ====== */
+.logs-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.logs-toolbar .grow{flex:1}
+.logs-toolbar .badge{padding:4px 10px;font-size:.65rem}
+.log-area{flex:1;background:#08080a;border:1px solid #1f1f23;border-radius:8px;padding:12px;overflow-y:auto;font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:.74rem;line-height:1.55;min-height:300px;max-height:50vh;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.log-area::-webkit-scrollbar{width:6px}
+.log-area::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+.log-line{margin-bottom:2px;white-space:pre-wrap;word-break:break-all}
+.log-line.info{color:#7dd3fc}
+.log-line.ok{color:#86efac}
+.log-line.warn{color:#fcd34d}
+.log-line.error{color:#fca5a5}
+.log-line .ts{color:#52525b;margin-right:6px}
+
+/* ====== TOAST ====== */
+.toast{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);padding:10px 22px;background:rgba(139,92,246,.95);color:#fff;border-radius:8px;font-size:.82rem;z-index:40;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.toast.visible{opacity:1}
+.toast.err{background:rgba(239,68,68,.95)}
+.toast.ok{background:rgba(16,185,129,.95)}
+
+/* ====== RESPONSIVE ====== */
+@media (max-width:640px){
+  .controls{padding:14px;gap:8px}
+  .ctrl-btn{width:46px;height:46px;font-size:1.15rem}
+  .ctrl-btn.primary{width:62px;height:62px;font-size:1.55rem}
+  .bitrate-btn{height:46px;padding:0 14px;font-size:.78rem}
+  .chat-sidebar{width:100%}
+  .stats-pill{top:64px;right:8px;font-size:.65rem;padding:6px 8px}
+  .top-bar{padding:10px}
+  .badge{font-size:.62rem;padding:5px 9px}
+  .modal{padding:18px}
+}
+</style>
+</head>
+<body>
+
+<!-- VIDEO PREVIEW -->
+<video id="preview" playsinline muted autoplay></video>
+
+<!-- OVERLAY (initial) -->
+<div class="overlay" id="overlay">
+  <i class="ti ti-device-cctv overlay-icon"></i>
+  <h1>Live Studio · WebRTC Simulcast</h1>
+  <p>Ative a câmera para começar. Depois clique em Go Live para transmitir.</p>
+  <button class="btn-start" id="btnStart" title="Ativar Câmera"><i class="ti ti-video-plus"></i></button>
+</div>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="badges">
+    <div class="badge live" id="liveBadge"><i class="ti ti-player-record-filled"></i> LIVE</div>
+    <div class="badge simulcast">SIMULCAST</div>
+    <div class="badge cam" id="camBadge"><i class="ti ti-video-off"></i> <span>CAM OFF</span></div>
+    <div class="badge mic" id="micBadge"><i class="ti ti-microphone-off"></i> <span>MIC OFF</span></div>
+    <div class="badge view-status" id="viewStatusBadge">OFFLINE</div>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="btnSettings" title="Configurações"><i class="ti ti-adjustments"></i></button>
+    <button class="icon-btn" id="btnLogs" title="Logs"><i class="ti ti-terminal-2"></i></button>
+    <button class="icon-btn" id="btnFs" title="Tela cheia"><i class="ti ti-maximize"></i></button>
+  </div>
+</div>
+
+<!-- STATS PILL (server-authoritative, polled from /api/webrtc/stats) -->
+<div class="stats-pill" id="statsPill">
+  <div class="stat" title="Viewers"><i class="ti ti-eye"></i><strong id="statViewCount">—</strong></div>
+  <span class="sep">·</span>
+  <div class="stat" title="Publishers"><i class="ti ti-broadcast"></i><strong id="statPubCount">—</strong></div>
+  <span class="sep">·</span>
+  <div class="stat" id="statViewStatus"><i class="ti ti-bolt-off"></i><strong>—</strong></div>
+</div>
+
+<!-- CONTROLS (bottom) -->
+<div class="controls hidden" id="controls">
+  <button class="ctrl-btn off" id="btnMic" title="Microfone"><i class="ti ti-microphone-off"></i></button>
+
+  <div class="bitrate-wrap">
+    <button class="bitrate-btn" id="btnBitrate" title="Bitrate"><i class="ti ti-adjustments-horizontal"></i><span id="bitrateLabel">Auto</span><i class="ti ti-chevron-up"></i></button>
+    <div class="bitrate-menu" id="bitrateMenu">
+      <div class="bitrate-item active" data-v="auto">Automático <small>adaptativo</small></div>
+      <div class="bitrate-item" data-v="2500000">Alta <small>2.5 Mbps</small></div>
+      <div class="bitrate-item" data-v="1200000">Média <small>1.2 Mbps</small></div>
+      <div class="bitrate-item" data-v="500000">Baixa <small>0.5 Mbps</small></div>
+    </div>
+  </div>
+
+  <button class="ctrl-btn primary" id="btnGoLive" title="Iniciar Live"><i class="ti ti-broadcast"></i></button>
+  <button class="ctrl-btn danger" id="btnStop" title="Parar" disabled><i class="ti ti-player-stop-filled"></i></button>
+
+  <button class="ctrl-btn" id="btnChat" title="Chat"><i class="ti ti-message-2"></i><span class="count" id="chatCount" style="display:none">0</span></button>
+</div>
+
+<!-- CHAT SIDEBAR -->
+<button class="chat-toggle" id="chatToggle" title="Chat"><i class="ti ti-message-2"></i></button>
+<div class="chat-sidebar" id="chatSidebar">
+  <div class="chat-header">
+    <h3><i class="ti ti-message-2"></i> Stream Chat <div class="chat-status-dot" id="chatStatusDot"></div></h3>
+    <button class="chat-close" id="chatClose"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="chat-scroll" id="chatContainer">
+    <div class="msg other"><span class="user">Sistema</span>Chat conectado. Boa sorte na transmissão!</div>
+  </div>
+  <div class="chat-input-wrap">
+    <div class="chat-box">
+      <input type="text" id="chatInput" class="chat-field" placeholder="Falar com a audiência..." maxlength="500">
+      <button class="send-btn" id="sendChat"><i class="ti ti-send"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settingsModalBg">
+  <div class="modal">
+    <h2><i class="ti ti-adjustments"></i> Configurar Transmissão</h2>
+    <div class="modal-sub" id="urlHint">https://director-ca.f5hlive.com.br</div>
+    <label>Server Host</label>
+    <input type="text" id="mServerHost" placeholder="director-ca.f5hlive.com.br" value="director-ca.f5hlive.com.br">
+    <label>Nome do Stream</label>
+    <input type="text" id="mStreamName" value="test123" placeholder="meu-stream">
+    <label>Publishing Token</label>
+    <input type="password" id="mToken" value="56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa">
+    <label>Bitrate</label>
+    <select id="mBitrate">
+      <option value="auto">Automático (adaptativo)</option>
+      <option value="2500000">Alta — 2.5 Mbps</option>
+      <option value="1200000">Média — 1.2 Mbps</option>
+      <option value="500000">Baixa — 0.5 Mbps</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="settingsCancel"><i class="ti ti-x"></i> Cancelar</button>
+      <button class="btn-confirm" id="settingsSave"><i class="ti ti-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS MODAL -->
+<div class="modal-bg" id="logsModalBg">
+  <div class="modal wide">
+    <h2><i class="ti ti-terminal-2"></i> Logs do Sistema</h2>
+    <div class="modal-sub" id="logsSub">últimas 500 linhas · auto-scroll ativo</div>
+    <div class="logs-toolbar">
+      <span class="badge" id="logsCount">0 linhas</span>
+      <div class="grow"></div>
+      <button class="btn-cancel" id="logsAutoscroll" style="padding:6px 12px;flex:none;font-size:.72rem" title="Toggle auto-scroll"><i class="ti ti-arrow-autofit-down"></i> Auto</button>
+      <button class="btn-cancel" id="logsCopy" style="padding:6px 12px;flex:none;font-size:.72rem" title="Copiar"><i class="ti ti-copy"></i> Copiar</button>
+      <button class="btn-cancel" id="logsClear" style="padding:6px 12px;flex:none;font-size:.72rem" title="Limpar"><i class="ti ti-trash"></i> Limpar</button>
+    </div>
+    <div class="log-area" id="logArea"></div>
+    <div class="modal-actions">
+      <button class="btn-confirm" id="logsClose"><i class="ti ti-x"></i> Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://sdk.f5hlive.com.br/pusher/8.5.0/pusher.min.js"></script>
+<script>
+
+const $ = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
+
+// --- CONFIG ---
+const config = {
+    serverHost: 'director-ca.f5hlive.com.br',
+    streamName: 'test123',
+    token: '56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa',
+    bitrate: 'auto'
+};
+
+function getServerUrl() {
+    const host = (config.serverHost || '').trim();
+    if (!host) {
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            return `${location.protocol}//${location.hostname}:443`;
+        }
+        return 'https://director-ca.f5hlive.com.br';
+    }
+    if (host.startsWith('http://') || host.startsWith('https://')) return host;
+    return `https://${host}`;
+}
+let SERVER_URL = getServerUrl();
+
+// Stats API no server de stream (mesmo host do SERVER_URL)
+function getStatsApiBase() {
+    return getServerUrl() + '/api/webrtc/stats';
+}
+let STATS_API_BASE = getStatsApiBase();
+
+const pusherKey = '11215d6822a0854b4550';
+const pusherCluster = 'custom';
+const chatChannelName = 'my-channel';
+const chatEvent = 'my-event';
+const clientChatEvent = 'client-my-event';
+
+// --- STATE ---
+let mediaStream = null;
+let peerConnection = null;
+let wsConnection = null;
+let isBroadcasting = false;
+let isCameraOn = false;
+let isMicOn = true;
+let channel = null;
+let currentBitrate = 'auto';
+let chatOpen = false;
+let chatUnread = 0;
+let logsAutoscroll = true;
+let statsPollTimer = null;
+const statsOverlayEl = null;
+const currentBroadcast = { accountId: null, streamName: null, jwt: null, token: null };
+const LOG_BUFFER_MAX = 500;
+const logBuffer = [];
+
+// --- LOG (buffer + modal + console) ---
+function log(msg, type = 'info') {
+    const ts = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    const entry = { ts, msg, type };
+    logBuffer.push(entry);
+    if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    line.innerHTML = `<span class="ts">[${ts}]</span>${escapeHtml(msg)}`;
+    const area = $('logArea');
+    area.appendChild(line);
+    while (area.children.length > LOG_BUFFER_MAX) area.removeChild(area.firstChild);
+    if (logsAutoscroll) area.scrollTop = area.scrollHeight;
+    $('logsCount').textContent = `${logBuffer.length} linhas`;
+    if (type === 'error') console.error(msg);
+    else if (type === 'warn') console.warn(msg);
+    else console.log(`[${type}] ${msg}`);
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// --- TOAST ---
+let toastTimer = null;
+function showToast(msg, type = '') {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast visible' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+// --- DECODE JWT (Millicast shape) ---
+function decodeJwtAccountId(jwt) {
+    if (!jwt || typeof jwt !== 'string') return null;
+    try {
+        const parts = jwt.split('.');
+        if (parts.length < 2) return null;
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(b64));
+        return (payload && payload.millicast && payload.millicast.streamAccountId)
+            || (payload && payload.sub)
+            || (payload && payload.accountId)
+            || (payload && payload.account_id)
+            || null;
+    } catch (e) { return null; }
+}
+
+// ============================================================
+// STATS POLLING (server-authoritative via /api/webrtc/stats)
+// ============================================================
+function buildStatsUrl(accountId, streamName, jwt) {
+    const params = new URLSearchParams();
+    if (accountId) params.set('accountId', accountId);
+    else if (jwt) params.set('token', jwt);
+    if (streamName) params.set('streamName', streamName);
+    const qs = params.toString();
+    return qs ? `${STATS_API_BASE}?${qs}` : STATS_API_BASE;
+}
+
+async function fetchWebRTCStats() {
+    const url = buildStatsUrl(currentBroadcast.accountId, currentBroadcast.streamName, currentBroadcast.jwt);
+    try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+        clearTimeout(to);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (e) {
+        return null;
+    }
+}
+
+function updateStatsUI(data) {
+    let viewCount = '—', publishCount = '—', viewStatus = '—', isOn = false;
+    try {
+        if (data && typeof data === 'object') {
+            if (typeof data.publishCount === 'number') publishCount = data.publishCount;
+            const vs = String(data.viewStatus || '').toLowerCase();
+            if (vs === 'on' || vs === 'live') { viewStatus = 'ON'; isOn = true; }
+            else if (vs === 'off' || vs === 'down') viewStatus = 'OFF';
+            if (Array.isArray(data.streams) && data.streams.length > 0) {
+                const match = data.streams.find(s => s &&
+                    String(s.accountId) === String(currentBroadcast.accountId) &&
+                    String(s.streamName) === String(currentBroadcast.streamName));
+                const s = match || data.streams[0];
+                if (s && typeof s.viewCount === 'number') viewCount = s.viewCount;
+            } else if (typeof data.totalViewers === 'number') {
+                viewCount = data.totalViewers;
+            }
+        }
+    } catch (_) {}
+
+    $('statsPill').classList.add('visible');
+    $('statViewCount').textContent = viewCount;
+    $('statPubCount').textContent = publishCount;
+    const vStat = $('statViewStatus');
+    vStat.classList.remove('on', 'off');
+    const vStrong = vStat.querySelector('strong');
+    const vIcon = vStat.querySelector('i');
+    if (isOn) {
+        vStat.classList.add('on');
+        vStrong.textContent = 'ON';
+        vIcon.className = 'ti ti-bolt';
+    } else if (viewStatus === 'OFF') {
+        vStat.classList.add('off');
+        vStrong.textContent = 'OFF';
+        vIcon.className = 'ti ti-bolt-off';
+    } else {
+        vStrong.textContent = viewStatus;
+        vIcon.className = 'ti ti-bolt-off';
+    }
+}
+
+function showStatsError() {
+    $('statViewCount').textContent = '—';
+    $('statPubCount').textContent = '—';
+    const vStat = $('statViewStatus');
+    vStat.classList.remove('on', 'off');
+    vStat.querySelector('strong').textContent = '—';
+    vStat.querySelector('i').className = 'ti ti-bolt-off';
+}
+
+async function pollStatsOnce() {
+    const data = await fetchWebRTCStats();
+    if (data) updateStatsUI(data);
+    else showStatsError();
+}
+
+function startStatsPolling(accountId, streamName) {
+    if (accountId) currentBroadcast.accountId = accountId;
+    if (streamName) currentBroadcast.streamName = streamName;
+    $('statsPill').classList.add('visible');
+    if (statsPollTimer) clearInterval(statsPollTimer);
+    pollStatsOnce();
+    statsPollTimer = setInterval(pollStatsOnce, 3000);
+    log(`Stats polling ativo: ${STATS_API_BASE}`, 'info');
+}
+
+function stopStatsPolling() {
+    if (statsPollTimer) { clearInterval(statsPollTimer); statsPollTimer = null; }
+    $('statsPill').classList.remove('visible');
+}
+
+// ============================================================
+// PUSHER CHAT
+// ============================================================
+function initPusherChat() {
+    log('Inicializando Pusher Chat...');
+    try {
+        const pusher = new Pusher(pusherKey, {
+            cluster: pusherCluster
+        });
+        pusher.connection.bind('connected', () => {
+            log('Pusher: Conectado', 'ok');
+            $('chatStatusDot').classList.add('online');
+            addMessage('Sistema', 'Chat conectado com sucesso.', false);
+        });
+        pusher.connection.bind('error', (err) => {
+            log(`Pusher Error: ${err.error || 'desconhecido'}`, 'error');
+            $('chatStatusDot').classList.remove('online');
+        });
+        channel = pusher.subscribe(chatChannelName);
+        channel.bind(chatEvent, (data) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            addMessage(parsed.user || 'Visitante', parsed.message || '', false);
+        });
+        channel.bind(clientChatEvent, (data) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            addMessage(parsed.user || 'Streamer', parsed.message || '', true);
+        });
+    } catch (e) {
+        log(`Pusher init falhou: ${e.message}`, 'warn');
+    }
+}
+
+function addMessage(user, text, isMe = false) {
+    const div = document.createElement('div');
+    div.className = `msg ${isMe ? 'me' : 'other'}`;
+    div.innerHTML = `<span class="user">${escapeHtml(user)}</span>${escapeHtml(text)}`;
+    $('chatContainer').appendChild(div);
+    $('chatContainer').scrollTop = $('chatContainer').scrollHeight;
+    if (!chatOpen && !isMe) {
+        chatUnread++;
+        const c = $('chatCount');
+        c.textContent = chatUnread;
+        c.style.display = 'flex';
+    }
+}
+
+function handleSend() {
+    const text = $('chatInput').value.trim();
+    if (text && channel) {
+        channel.trigger(clientChatEvent, { user: 'Host (Você)', message: text });
+        $('chatInput').value = '';
+    }
+}
+
+// ============================================================
+// BROADCAST (addTrack)
+// ============================================================
+async function applyBitrate(pc, bitrateValue) {
+    if (bitrateValue === 'auto') return;
+    const bps = parseInt(bitrateValue);
+    const senders = pc.getSenders();
+    for (const sender of senders) {
+        if (sender.track && sender.track.kind === 'video') {
+            try {
+                const params = sender.getParameters();
+                if (!params.encodings) params.encodings = [{}];
+                params.encodings[0].maxBitrate = bps;
+                await sender.setParameters(params);
+                log(`Bitrate definido: ${(bps/1000)} kbps`);
+            } catch (e) { log('Erro ao definir bitrate (não crítico)', 'warn'); }
+        }
+    }
+}
+
+async function startCamera() {
+    try {
+        log('Solicitando permissões de Câmera/Microfone...');
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 1280, height: 720, frameRate: 30 },
+            audio: true
+        });
+        $('preview').srcObject = mediaStream;
+        isCameraOn = true;
+        $('overlay').classList.add('hidden');
+        $('controls').classList.remove('hidden');
+        updateCamBadge();
+        updateMicBadge();
+        log('Câmera + microfone ativos', 'ok');
+        showToast('Câmera ativa', 'ok');
+    } catch (e) {
+        log(`Falha ao acessar câmera: ${e.message}`, 'error');
+        showToast('Erro: ' + e.message, 'err');
+    }
+}
+
+async function startBroadcast() {
+    if (isBroadcasting) return;
+    if (!isCameraOn) { showToast('Ative a câmera primeiro', 'err'); return; }
+    const token = config.token;
+    const streamName = config.streamName;
+    const bitrate = config.bitrate;
+    if (!token || !streamName) { showToast('Token e Stream Name obrigatórios', 'err'); return; }
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showToast('Use HTTPS ou localhost', 'err'); return;
+    }
+
+    $('btnGoLive').disabled = true;
+    $('btnGoLive').innerHTML = '<i class="ti ti-loader ti-spin"></i>';
+    log('Autenticando no Diretor...');
+
+    try {
+        const response = await fetch(`${SERVER_URL}/api/director/publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, streamName })
+        });
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Servidor HTTP ${response.status}: ${errText}`);
+        }
+        const data = await response.json();
+        log('Resposta do servidor recebida', 'ok');
+
+        let wsUrl = null;
+        const jwt = data.jwt || data.data?.jwt;
+        const urls = data.data?.urls || data.urls;
+        currentBroadcast.jwt = jwt || null;
+        currentBroadcast.token = token;
+        currentBroadcast.streamName = streamName;
+        currentBroadcast.accountId = decodeJwtAccountId(jwt);
+
+        if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+        else if (typeof urls === 'string') wsUrl = urls;
+        else if (data.url) wsUrl = data.url;
+        if (!wsUrl) throw new Error('Nenhuma URL WebSocket encontrada.');
+        if (wsUrl.startsWith('http')) wsUrl = wsUrl.replace('http', 'ws');
+        if (jwt) wsUrl += (wsUrl.includes('?') ? '&' : '?') + 'token=' + jwt;
+        log(`Conectando WS: ${wsUrl.substring(0, 50)}...`);
+
+        wsConnection = new WebSocket(wsUrl);
+
+        wsConnection.onopen = async () => {
+            log('WebSocket aberto. Criando PeerConnection...', 'ok');
+            peerConnection = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            // addTrack (sem sendEncodings)
+            mediaStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, mediaStream);
+            });
+            log('Tracks adicionadas via addTrack', 'ok');
+            await applyBitrate(peerConnection, bitrate);
+
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    try { wsConnection.send(JSON.stringify({ type: 'candidate', candidate: e.candidate })); } catch (err) {}
+                }
+            };
+            peerConnection.oniceconnectionstatechange = () => log(`ICE state: ${peerConnection.iceConnectionState}`);
+            peerConnection.onconnectionstatechange = () => {
+                const st = peerConnection.connectionState;
+                log(`PC state: ${st}`);
+                if (st === 'connected') log('Conexão P2P estabelecida!', 'ok');
+            };
+
+            try {
+                const offer = await peerConnection.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
+                await peerConnection.setLocalDescription(offer);
+                log('Enviando Offer SDP...');
+                wsConnection.send(JSON.stringify({
+                    type: 'cmd', transId: Date.now().toString(),
+                    name: 'publish',
+                    data: { sdp: peerConnection.localDescription.sdp }
+                }));
+            } catch (offerErr) {
+                log(`Erro ao criar offer: ${offerErr.message}`, 'error');
+                resetGoLiveBtn();
+            }
+        };
+
+        wsConnection.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                let sdp = null;
+                if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+                else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+
+                if (sdp) {
+                    if (!sdp.trim()) {
+                        log('ERRO: servidor retornou answer SDP vazia!', 'error');
+                        const errMsg = (msg.data && msg.data.message) ? msg.data.message : 'Answer vazia';
+                        log(`Detalhe: ${errMsg}`, 'error');
+                        resetGoLiveBtn();
+                        return;
+                    }
+                    log('Answer SDP recebida. Live iniciada!', 'ok');
+                    peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }))
+                        .then(() => {
+                            log('setRemoteDescription OK — mídia fluindo', 'ok');
+                            setBroadcastingState(true);
+                        })
+                        .catch((srdErr) => {
+                            log(`ERRO setRemoteDescription: ${srdErr.message}`, 'error');
+                            resetGoLiveBtn();
+                        });
+                } else if (msg.type === 'event' && msg.name === 'active') {
+                    log('Evento active recebido (publicação confirmada)', 'ok');
+                } else if (msg.type === 'event' && msg.name === 'inactive') {
+                    log('Evento inactive recebido', 'warn');
+                } else if (msg.type === 'error') {
+                    log(`ERRO servidor: ${msg.message || JSON.stringify(msg)}`, 'error');
+                    resetGoLiveBtn();
+                }
+            } catch (err) { log('Erro ao parsear WS msg', 'error'); }
+        };
+
+        wsConnection.onerror = () => { log('Erro na conexão WebSocket', 'error'); };
+        wsConnection.onclose = () => {
+            log('WebSocket fechado', 'warn');
+            if (isBroadcasting) stopBroadcast();
+        };
+    } catch (err) {
+        log(`FALHA: ${err.message}`, 'error');
+        showToast('Erro: ' + err.message, 'err');
+        resetGoLiveBtn();
+    }
+}
+
+function stopBroadcast() {
+    log('Encerrando transmissão...');
+    if (wsConnection) { try { wsConnection.close(); } catch(e){} wsConnection = null; }
+    if (peerConnection) { try { peerConnection.close(); } catch(e){} peerConnection = null; }
+    setBroadcastingState(false);
+}
+
+function setBroadcastingState(isLive) {
+    isBroadcasting = isLive;
+    if (isLive) {
+        $('btnGoLive').disabled = true;
+        $('btnGoLive').classList.add('live');
+        $('btnGoLive').innerHTML = '<i class="ti ti-broadcast"></i>';
+        $('btnStop').disabled = false;
+        $('liveBadge').classList.add('visible');
+        $('viewStatusBadge').classList.add('on');
+        $('viewStatusBadge').textContent = 'ON AIR';
+        startStatsPolling(currentBroadcast.accountId, currentBroadcast.streamName);
+        showToast('Ao vivo!', 'ok');
+    } else {
+        resetGoLiveBtn();
+        $('btnStop').disabled = true;
+        $('liveBadge').classList.remove('visible');
+        $('viewStatusBadge').classList.remove('on');
+        $('viewStatusBadge').textContent = 'OFFLINE';
+        stopStatsPolling();
+    }
+}
+
+function resetGoLiveBtn() {
+    $('btnGoLive').disabled = false;
+    $('btnGoLive').classList.remove('live');
+    $('btnGoLive').innerHTML = '<i class="ti ti-broadcast"></i>';
+}
+
+// ============================================================
+// BADGES
+// ============================================================
+function updateCamBadge() {
+    const b = $('camBadge');
+    if (isCameraOn) {
+        b.classList.add('on');
+        b.innerHTML = '<i class="ti ti-video"></i> <span>CAM ON</span>';
+    } else {
+        b.classList.remove('on');
+        b.innerHTML = '<i class="ti ti-video-off"></i> <span>CAM OFF</span>';
+    }
+}
+function updateMicBadge() {
+    const b = $('micBadge');
+    if (isCameraOn && isMicOn) {
+        b.classList.remove('off');
+        b.classList.add('on');
+        b.innerHTML = '<i class="ti ti-microphone"></i> <span>MIC ON</span>';
+    } else {
+        b.classList.remove('on');
+        b.classList.add('off');
+        b.innerHTML = '<i class="ti ti-microphone-off"></i> <span>MIC OFF</span>';
+    }
+}
+function toggleMic() {
+    if (!mediaStream) return;
+    const audioTracks = mediaStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+    isMicOn = !isMicOn;
+    audioTracks.forEach(t => t.enabled = isMicOn);
+    updateMicBadge();
+    $('btnMic').classList.toggle('on', isMicOn);
+    $('btnMic').classList.toggle('off', !isMicOn);
+    $('btnMic').innerHTML = isMicOn ? '<i class="ti ti-microphone"></i>' : '<i class="ti ti-microphone-off"></i>';
+    showToast(isMicOn ? 'Mic ativo' : 'Mic mudo');
+}
+
+
+
+// Bitrate dropdown
+$('btnBitrate').addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('bitrateMenu').classList.toggle('open');
+});
+$$('.bitrate-item').forEach(item => {
+    item.addEventListener('click', () => {
+        $$('.bitrate-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        const v = item.dataset.v;
+        config.bitrate = v;
+        const label = item.textContent.trim().split(/\s+/).slice(0, 2).join(' ');
+        $('bitrateLabel').textContent = item.querySelector('small') ? item.firstChild.textContent.trim() : label;
+        $('bitrateMenu').classList.remove('open');
+        log(`Bitrate selecionado: ${v}`);
+    });
+});
+document.addEventListener('click', () => $('bitrateMenu').classList.remove('open'));
+// ============================================================
+// EVENTS
+// ============================================================
+$('btnStart').addEventListener('click', startCamera);
+$('btnGoLive').addEventListener('click', () => { if (!isBroadcasting) startBroadcast(); });
+$('btnStop').addEventListener('click', () => stopBroadcast());
+$('btnMic').addEventListener('click', toggleMic);
+$('btnFs').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+});
+// Chat
+$('btnChat').addEventListener('click', () => toggleChat(true));
+$('chatToggle').addEventListener('click', () => toggleChat(true));
+$('chatClose').addEventListener('click', () => toggleChat(false));
+function toggleChat(open) {
+    chatOpen = open;
+    $('chatSidebar').classList.toggle('open', open);
+    if (open) {
+        chatUnread = 0;
+        $('chatCount').style.display = 'none';
+    }
+}
+$('sendChat').addEventListener('click', handleSend);
+$('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+
+// Settings modal
+$('btnSettings').addEventListener('click', () => {
+    $('mServerHost').value = config.serverHost;
+    $('mStreamName').value = config.streamName;
+    $('mToken').value = config.token;
+    $('mBitrate').value = config.bitrate;
+    $('urlHint').textContent = `${getServerUrl()}/api/director/publish`;
+    $('settingsModalBg').classList.add('visible');
+});
+$('settingsCancel').addEventListener('click', () => $('settingsModalBg').classList.remove('visible'));
+$('settingsSave').addEventListener('click', () => {
+    config.serverHost = $('mServerHost').value.trim() || config.serverHost;
+    config.streamName = $('mStreamName').value.trim() || config.streamName;
+    config.token = $('mToken').value.trim() || config.token;
+    config.bitrate = $('mBitrate').value;
+    SERVER_URL = getServerUrl(); // reconstrói SERVER_URL com novo host
+    STATS_API_BASE = getStatsApiBase(); // reconstrói STATS_API_BASE com novo host
+    // Sync bitrate dropdown UI
+    $$('.bitrate-item').forEach(i => i.classList.toggle('active', i.dataset.v === config.bitrate));
+    const activeItem = document.querySelector('.bitrate-item.active');
+    if (activeItem) $('bitrateLabel').textContent = activeItem.firstChild.textContent.trim();
+    $('settingsModalBg').classList.remove('visible');
+    if (isBroadcasting) {
+        showToast('Salvo — reinicie a live para aplicar', '');
+    } else {
+        showToast('Configurações salvas', 'ok');
+    }
+});
+$('settingsModalBg').addEventListener('click', e => { if (e.target === $('settingsModalBg')) $('settingsModalBg').classList.remove('visible'); });
+
+// Logs modal
+$('btnLogs').addEventListener('click', () => {
+    $('logsModalBg').classList.add('visible');
+    if (logsAutoscroll) $('logArea').scrollTop = $('logArea').scrollHeight;
+});
+$('logsClose').addEventListener('click', () => $('logsModalBg').classList.remove('visible'));
+$('logsModalBg').addEventListener('click', e => { if (e.target === $('logsModalBg')) $('logsModalBg').classList.remove('visible'); });
+$('logsAutoscroll').addEventListener('click', () => {
+    logsAutoscroll = !logsAutoscroll;
+    $('logsAutoscroll').style.color = logsAutoscroll ? 'var(--success)' : '';
+    if (logsAutoscroll) $('logArea').scrollTop = $('logArea').scrollHeight;
+});
+$('logsClear').addEventListener('click', () => {
+    logBuffer.length = 0;
+    $('logArea').innerHTML = '';
+    $('logsCount').textContent = '0 linhas';
+    log('Logs limpos', 'info');
+});
+$('logsCopy').addEventListener('click', async () => {
+    const txt = logBuffer.map(l => `[${l.ts}] ${l.msg}`).join('\n');
+    try {
+        await navigator.clipboard.writeText(txt);
+        showToast('Logs copiados', 'ok');
+    } catch (e) { showToast('Erro ao copiar', 'err'); }
+});
+
+// INIT
+window.onload = () => {
+    initPusherChat();
+    log('=== LIVE CREATOR SIMULCAST ===', 'ok');
+    log('Fluxo: addTrack');
+    log(`SERVER_URL: ${SERVER_URL}`);
+    log(`STATS_API: ${STATS_API_BASE}`);
+    log('Sistema pronto. Clique na câmera para começar.');
+};
+</script>
+</body>
+</html>

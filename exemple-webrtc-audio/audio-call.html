@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Audio Call — Exemplo SFU v2.0</title>
+
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <!-- SweetAlert2 (modal/toast) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Pusher SDK (self-hosted — para SINALIZAÇÃO apenas) -->
+    <script src="https://sdk.f5hlive.com.br/pusher/8.5.0/pusher.min.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #0a0f0d;
+            --bg-card: #131a17;
+            --bg-input: #1c2622;
+            --text-main: #f0fdf4;
+            --text-muted: #94a3a0;
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --primary-light: #34d399;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --border: #1f2a25;
+        }
+        * { box-sizing: border-box; outline: none; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background:
+                radial-gradient(circle at 20% 30%, rgba(16,185,129,0.08), transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(16,185,129,0.06), transparent 40%),
+                var(--bg-body);
+        }
+        .app {
+            width: 100%;
+            max-width: 460px;
+            height: 100%;
+            max-height: 720px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .app-header {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            z-index: 10;
+            pointer-events: none;
+        }
+        .app-header .me {
+            background: rgba(16,185,129,0.12);
+            color: var(--primary-light);
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(16,185,129,0.2);
+            font-weight: 600;
+            font-size: 11px;
+        }
+        .app-header .conn { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+        .app-header .conn .dot { width: 6px; height: 6px; border-radius: 50%; background: #6b7280; }
+        .app-header .conn.online .dot { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+        /* LOGIN */
+        #screen-login {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 32px 28px; gap: 20px;
+        }
+        .logo-circle {
+            width: 88px; height: 88px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 40px; color: white;
+            box-shadow: 0 10px 40px rgba(16,185,129,0.4);
+            animation: pulse-ring 2.4s ease-out infinite;
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5), 0 10px 40px rgba(16,185,129,0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(16,185,129,0), 0 10px 40px rgba(16,185,129,0.4); }
+            100% { box-shadow: 0 0 0 0 rgba(16,185,129,0), 0 10px 40px rgba(16,185,129,0.4); }
+        }
+        #screen-login h1 { font-size: 22px; font-weight: 700; text-align: center; }
+        #screen-login p.subtitle { color: var(--text-muted); font-size: 13px; text-align: center; margin-top: -10px; }
+        .form-group { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+        .form-group input {
+            width: 100%; background: var(--bg-input);
+            border: 1px solid var(--border); color: var(--text-main);
+            padding: 11px 14px; border-radius: 10px; font-size: 14px;
+            transition: all 0.2s; font-family: inherit;
+        }
+        .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+        .form-group input.small { font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+        .btn {
+            width: 100%; padding: 13px 16px; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            font-family: inherit;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-hover)); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(16,185,129,0.35); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-ghost { background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+        .collapsible { width: 100%; }
+        .collapsible-header {
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; padding: 8px 12px; background: var(--bg-input);
+            border: 1px solid var(--border); border-radius: 8px; font-size: 12px;
+            color: var(--text-muted); font-weight: 600;
+        }
+        .collapsible-header:hover { color: var(--primary); }
+        .collapsible-body { display: none; padding-top: 12px; }
+        .collapsible.open .collapsible-body { display: block; }
+
+        /* CALL */
+        #screen-call {
+            flex: 1; display: none; flex-direction: column;
+            align-items: center; justify-content: space-between;
+            padding: 50px 24px 32px;
+        }
+        #screen-call.active { display: flex; }
+        .call-header { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+        .peer-avatar {
+            width: 130px; height: 130px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 54px; font-weight: 700; color: white;
+            box-shadow: 0 20px 50px rgba(16,185,129,0.35);
+            position: relative;
+        }
+        .peer-avatar.calling::before, .peer-avatar.calling::after {
+            content: ''; position: absolute; inset: 0; border-radius: 50%;
+            border: 2px solid var(--primary); animation: ring 1.8s ease-out infinite;
+        }
+        .peer-avatar.calling::after { animation-delay: 0.9s; }
+        @keyframes ring { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
+        .peer-name { font-size: 24px; font-weight: 700; }
+        .call-status { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+        .call-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: blink 1.4s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+        .call-timer { font-size: 18px; font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--primary-light); letter-spacing: 1px; }
+        .call-controls { display: flex; gap: 24px; align-items: center; }
+        .ctrl-btn {
+            width: 60px; height: 60px; border-radius: 50%; border: none;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 24px; background: var(--bg-input); color: var(--text-main);
+            border: 1px solid var(--border); transition: all 0.2s;
+        }
+        .ctrl-btn:hover { transform: scale(1.06); }
+        .ctrl-btn.muted { background: var(--warning); color: white; border-color: var(--warning); }
+        .ctrl-btn.end-call {
+            width: 70px; height: 70px;
+            background: linear-gradient(135deg, var(--danger), var(--danger-hover));
+            color: white; border: none; font-size: 28px;
+            box-shadow: 0 10px 30px rgba(239,68,68,0.4);
+        }
+        .ctrl-btn.end-call:hover { transform: scale(1.08) rotate(135deg); }
+        .ctrl-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; text-align: center; letter-spacing: 0.4px; text-transform: uppercase; }
+        .ctrl-group { display: flex; flex-direction: column; align-items: center; }
+
+        /* DEBUG */
+        .debug-toggle {
+            position: absolute; bottom: 12px; right: 12px;
+            width: 32px; height: 32px; border-radius: 50%;
+            background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+            color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; z-index: 20; transition: all 0.2s;
+        }
+        .debug-toggle:hover { color: var(--primary); border-color: var(--primary); }
+        #debug-panel {
+            position: absolute; top: 40px; left: 12px; right: 12px;
+            max-height: 60%; background: rgba(0,0,0,0.85); color: #0f0;
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+            overflow-y: auto; z-index: 30; display: none;
+        }
+        #debug-panel.open { display: block; }
+        #debug-panel .log-err { color: #ff5555; }
+        #debug-panel .log-warn { color: #ffaa00; }
+        #debug-panel .log-ok { color: #00ff88; }
+        #debug-panel .log-info { color: #5599ff; }
+        #debug-panel::-webkit-scrollbar { width: 6px; }
+        #debug-panel::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        /* SWEETALERT */
+        .swal2-popup.call-modal {
+            background: var(--bg-card) !important; color: var(--text-main) !important;
+            border: 1px solid var(--border) !important; border-radius: 20px !important;
+            box-shadow: 0 25px 70px rgba(0,0,0,0.7) !important;
+        }
+        .swal2-popup.call-modal .swal2-title { color: var(--text-main) !important; font-size: 20px !important; }
+        .swal2-popup.call-modal .swal2-html-container { color: var(--text-muted) !important; margin: 8px 0 0 !important; }
+        .swal2-popup.call-modal .swal2-actions { gap: 12px !important; margin-top: 20px !important; }
+        .swal2-popup.call-modal .swal2-confirm {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover)) !important;
+            border-radius: 50% !important; width: 64px !important; height: 64px !important;
+            padding: 0 !important; font-size: 24px !important;
+            box-shadow: 0 8px 25px rgba(16,185,129,0.4) !important;
+        }
+        .swal2-popup.call-modal .swal2-cancel {
+            background: linear-gradient(135deg, var(--danger), var(--danger-hover)) !important;
+            border-radius: 50% !important; width: 64px !important; height: 64px !important;
+            padding: 0 !important; font-size: 24px !important;
+            box-shadow: 0 8px 25px rgba(239,68,68,0.4) !important;
+        }
+        .incoming-call-ring {
+            width: 80px; height: 80px; margin: 0 auto 4px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; color: white; position: relative;
+            animation: shake 1s ease-in-out infinite;
+        }
+        .incoming-call-ring::before, .incoming-call-ring::after {
+            content: ''; position: absolute; inset: 0; border-radius: 50%;
+            border: 2px solid var(--primary); animation: ring 1.8s ease-out infinite;
+        }
+        .incoming-call-ring::after { animation-delay: 0.9s; }
+        @keyframes shake { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+        .swal2-popup.call-toast {
+            background: var(--bg-card) !important; color: var(--text-main) !important;
+            border: 1px solid var(--border) !important; border-radius: 12px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+            padding: 12px 16px !important; min-width: 280px !important;
+        }
+        .swal2-popup.call-toast .swal2-title { color: var(--text-main) !important; font-size: 14px !important; }
+
+        @media (max-width: 500px) {
+            .app { max-height: 100vh; border-radius: 0; border: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app" id="app">
+    <div class="app-header">
+        <span class="me" id="me-badge">offline</span>
+        <span class="conn" id="conn-status">
+            <span class="dot"></span>
+            <span id="conn-label">desconectado</span>
+        </span>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="screen-login">
+        <div class="logo-circle"><i class="ti ti-phone-call"></i></div>
+        <div>
+            <h1>Audio Call</h1>
+            <p class="subtitle">SFU — estável</p>
+        </div>
+        <div class="form-group">
+            <label>Seu ID</label>
+            <input type="text" id="input-my-id" placeholder="ex: alice" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label>ID de quem deseja chamar</label>
+            <input type="text" id="input-peer-id" placeholder="ex: bob" autocomplete="off">
+        </div>
+
+        <div class="collapsible" id="adv-collapse">
+            <div class="collapsible-header" id="adv-toggle">
+                <span><i class="ti ti-adjustments"></i> Configuração avançada</span>
+                <i class="ti ti-chevron-down" id="adv-chevron"></i>
+            </div>
+            <div class="collapsible-body">
+                <div class="form-group" style="margin-top:8px;">
+                    <label>Account ID (streaming)</label>
+                    <input type="text" id="input-account" class="small" value="g9FP3A">
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label>Publishing Token</label>
+                    <input type="text" id="input-token" class="small" value="k9x2m471wb8p2q94jsfgtbyz36819r50432m652v8pqr1op7w9r2a4j553bdrntf">		
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-connect">
+            <i class="ti ti-plug"></i> Entrar e ficar disponível
+        </button>
+        <p class="subtitle" style="margin-top:-6px; font-size:11px;">
+            Abra em outra aba com outro ID e chame.
+        </p>
+    </div>
+
+    <!-- CALL -->
+    <div id="screen-call">
+        <div class="call-header">
+            <div class="peer-avatar calling" id="peer-avatar">
+                <i class="ti ti-user"></i>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                <div class="peer-name" id="peer-name">—</div>
+                <div class="call-status" id="call-status">
+                    <span class="dot"></span>
+                    <span id="call-status-text">conectando…</span>
+                </div>
+                <div class="call-timer" id="call-timer" style="display:none;">00:00</div>
+            </div>
+        </div>
+        <div class="call-controls">
+            <div class="ctrl-group">
+                <button class="ctrl-btn" id="btn-mute" title="Mutar microfone">
+                    <i class="ti ti-microphone"></i>
+                </button>
+                <span class="ctrl-label">Mudo</span>
+            </div>
+            <div class="ctrl-group">
+                <button class="ctrl-btn end-call" id="btn-end" title="Encerrar">
+                    <i class="ti ti-phone-off"></i>
+                </button>
+                <span class="ctrl-label">Desligar</span>
+            </div>
+            <div class="ctrl-group">
+                <button class="ctrl-btn" id="btn-speaker" title="Volume">
+                    <i class="ti ti-volume"></i>
+                </button>
+                <span class="ctrl-label">Volume</span>
+            </div>
+        </div>
+    </div>
+
+    <button class="debug-toggle" id="btn-debug" title="Logs"><i class="ti ti-bug"></i></button>
+    <div id="debug-panel"></div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONFIG
+// ============================================================
+// SFU (STREAM) — director-ca
+const SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? `${location.protocol}//${location.hostname}:443`
+    : 'https://director-ca.f5hlive.com.br:443'; 
+
+// Pusher (CHAT/sinalização) — custom
+const PUSHER_KEY    = '11215d6822a0854b4550';
+const PUSHER_CLUSTER = 'custom';
+
+function genShortId() { return Math.random().toString(36).substring(2, 8); }
+
+// ---- STATE ----
+const state = {
+    myId: null,
+    peerId: null,
+    accountId: 'g9FP3A',
+    token: '',
+    roomId: null,             // canal Pusher compartilhado (determinístico)
+    localStreamName: 'ac-' + genShortId(),
+    localStream: null,
+    localWs: null,
+    localPc: null,
+    localPublishActive: false,
+    remoteStreamName: null,
+    remoteWs: null,
+    remotePc: null,
+    remoteAudio: null,
+    pusher: null,
+    channel: null,
+    isMuted: false,
+    isCaller: false,
+    callActive: false,
+    callStartTs: 0,
+    timerInterval: null,
+    incomingSwal: null,
+    callOfferTimer: null,
+};
+
+// ---- LOG ----
+const debugPanel = document.getElementById('debug-panel');
+function log(msg, type = 'info') {
+    const cls = ({err:'log-err', warn:'log-warn', ok:'log-ok', info:'log-info'})[type] || 'log-info';
+    const time = new Date().toLocaleTimeString('pt-BR');
+    const line = document.createElement('div');
+    line.className = cls;
+    line.textContent = `[${time}] ${msg}`;
+    debugPanel.appendChild(line);
+    debugPanel.scrollTop = debugPanel.scrollHeight;
+    console.log(`%c[${type}] ${msg}`, `color:${({err:'red',warn:'orange',ok:'green',info:'blue'})[type]||'gray'}`);
+}
+
+// ---- UI HELPERS ----
+function setConnStatus(online, label) {
+    const el = document.getElementById('conn-status');
+    document.getElementById('conn-label').textContent = label;
+    el.classList.toggle('online', online);
+}
+function showLogin() {
+    document.getElementById('screen-login').style.display = 'flex';
+    document.getElementById('screen-call').classList.remove('active');
+}
+function showCall(peerName, isCalling) {
+    document.getElementById('screen-login').style.display = 'none';
+    document.getElementById('screen-call').classList.add('active');
+    document.getElementById('peer-name').textContent = peerName || state.peerId;
+    document.getElementById('peer-avatar').classList.toggle('calling', !!isCalling);
+    document.getElementById('call-status-text').textContent = isCalling ? 'chamando…' : 'conectando…';
+    document.getElementById('call-timer').style.display = 'none';
+}
+function setCallStatus(text, withTimer = false) {
+    document.getElementById('call-status-text').textContent = text;
+    document.getElementById('call-timer').style.display = withTimer ? 'block' : 'none';
+}
+function startTimer() {
+    state.callStartTs = Date.now();
+    document.getElementById('call-timer').style.display = 'block';
+    state.timerInterval = setInterval(() => {
+        const s = Math.floor((Date.now() - state.callStartTs) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        document.getElementById('call-timer').textContent = `${mm}:${ss}`;
+    }, 500);
+}
+function stopTimer() { if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; } }
+function toast(title, icon = 'success', timer = 2500) {
+    Swal.fire({ toast: true, position: 'top-end', icon, title, showConfirmButton: false, timer, timerProgressBar: true, customClass: { popup: 'call-toast' } });
+}
+
+// ---- ROOM ID determinístico (ambos os peers calculam o mesmo) ----
+function computeRoomId(a, b) {
+    return [a, b].sort().join('-');
+}
+
+// ==========================================================================
+// LOGIN — conectar Pusher e ficar disponível
+// ==========================================================================
+document.getElementById('adv-toggle').addEventListener('click', () => {
+    const c = document.getElementById('adv-collapse');
+    c.classList.toggle('open');
+    document.getElementById('adv-chevron').className = c.classList.contains('open') ? 'ti ti-chevron-up' : 'ti ti-chevron-down';
+});
+
+document.getElementById('btn-connect').addEventListener('click', async () => {
+    const myId  = document.getElementById('input-my-id').value.trim();
+    const peerId = document.getElementById('input-peer-id').value.trim();
+    const acc   = document.getElementById('input-account').value.trim();
+    const tok   = document.getElementById('input-token').value.trim();
+    if (!myId) { toast('Digite seu ID', 'error'); return; }
+    if (!peerId) { toast('Digite o ID do peer', 'error'); return; }
+
+    state.myId = myId;
+    state.peerId = peerId;
+    state.accountId = acc || 'g9FP3A';
+    state.token = tok;
+    state.roomId = computeRoomId(myId, peerId);
+
+    try {
+        log(`Conectando Pusher (sinalização) — myId=${myId} peerId=${peerId} room=${state.roomId}`);
+        state.pusher = new Pusher(PUSHER_KEY, {
+            cluster: PUSHER_CLUSTER
+        });
+
+        const channelName = 'ac-' + state.roomId;
+        state.channel = state.pusher.subscribe(channelName);
+        log('Pusher channel: ' + channelName);
+
+        state.pusher.connection.bind('connected', () => {
+            log('Pusher conectado!', 'ok');
+            setConnStatus(true, 'online');
+            document.getElementById('me-badge').textContent = 'ID: ' + myId;
+            toast('Disponível como ' + myId, 'success');
+        });
+        state.pusher.connection.bind('error', (err) => {
+            log('Pusher erro: ' + JSON.stringify(err), 'err');
+            setConnStatus(false, 'erro');
+        });
+
+        state.channel.bind('pusher:subscription_succeeded', () => {
+            log('Pusher subscrito no canal da sala', 'ok');
+        });
+        state.channel.bind('pusher:subscription_error', (err) => {
+            log('Pusher sub error: ' + JSON.stringify(err), 'err');
+        });
+
+        // BIND eventos de sinalização
+        bindSignalingEvents();
+
+        // Ir pra tela de chamada (aguardando ou chamando)
+        showCall(state.peerId, false);
+        setCallStatus('pronto — clique em Ligar');
+
+        // Adiciona botão Ligar
+        addDialButton();
+    } catch (e) {
+        log('Erro conectar: ' + e.message, 'err');
+        toast('Falha ao conectar', 'error');
+    }
+});
+
+function addDialButton() {
+    if (document.getElementById('btn-dial')) return;
+    const ctrl = document.querySelector('.call-controls');
+    const group = document.createElement('div');
+    group.className = 'ctrl-group';
+    group.id = 'dial-group';
+    group.innerHTML = `
+        <button class="ctrl-btn" id="btn-dial" style="background:linear-gradient(135deg,var(--primary),var(--primary-hover));color:white;border:none;box-shadow:0 10px 30px rgba(16,185,129,0.4);">
+            <i class="ti ti-phone"></i>
+        </button>
+        <span class="ctrl-label">Ligar</span>
+    `;
+    ctrl.insertBefore(group, ctrl.firstChild);
+    document.getElementById('btn-dial').addEventListener('click', initiateCall);
+}
+
+// ==========================================================================
+// SINALIZAÇÃO via PUSHER (client events no canal compartilhado)
+// --------------------------------------------------------------------------
+// Eventos:
+//   client-call-offer  { from, to }              — caller → callee
+//   client-call-accept { from, to }              — callee → caller
+//   client-call-reject { from, to, reason }      — callee → caller
+//   client-call-end    { from, to }              — qualquer um → outro
+//   client-join        { from, streamName }      — anuncia streamName
+//   client-hello       { from, streamName }      — resposta ao join
+//   client-mute-state  { from, muted }           — sync mute
+// ==========================================================================
+function bindSignalingEvents() {
+    state.channel.bind('client-call-offer', (data) => {
+        if (!data || data.to !== state.myId) return;
+        if (state.callActive) {
+            // ocupado
+            triggerSig('client-call-reject', { from: state.myId, to: data.from, reason: 'busy' });
+            return;
+        }
+        log(`📞 Chamada recebida de ${data.from}`, 'info');
+        state.peerId = data.from;
+        showIncomingCallModal(data.from);
+    });
+
+    state.channel.bind('client-call-accept', (data) => {
+        if (!data || data.to !== state.myId) return;
+        log(`✅ ${data.from} aceitou`, 'ok');
+        if (state.callOfferTimer) { clearTimeout(state.callOfferTimer); state.callOfferTimer = null; }
+        // Caller agora publica e anuncia
+        startCallMedia(true);
+    });
+
+    state.channel.bind('client-call-reject', (data) => {
+        if (!data || data.to !== state.myId) return;
+        log(`❌ ${data.from} rejeitou (${data.reason})`, 'warn');
+        if (state.callOfferTimer) { clearTimeout(state.callOfferTimer); state.callOfferTimer = null; }
+        toast('Chamada recusada', 'error');
+        document.getElementById('peer-avatar').classList.remove('calling');
+        setCallStatus('pronto — clique em Ligar');
+        const dg = document.getElementById('dial-group');
+        if (dg) dg.style.display = '';
+    });
+
+    state.channel.bind('client-call-end', (data) => {
+        if (!data || data.to !== state.myId) return;
+        log(`📵 ${data.from} encerrou`, 'warn');
+        endCall(false);
+    });
+
+    state.channel.bind('client-join', (data) => {
+        if (!data || data.from === state.myId) return;
+        log(`📥 client-join de ${data.from} stream=${data.streamName}`, 'info');
+        state.remoteStreamName = data.streamName;
+        // Responde com hello para que o outro nos descubra
+        triggerSig('client-hello', { from: state.myId, streamName: state.localStreamName });
+        // Assina o stream do peer
+        subscribeToRemote();
+    });
+
+    state.channel.bind('client-hello', (data) => {
+        if (!data || data.from === state.myId) return;
+        log(`📥 client-hello de ${data.from} stream=${data.streamName}`, 'info');
+        if (!state.remoteStreamName) {
+            state.remoteStreamName = data.streamName;
+            subscribeToRemote();
+        }
+    });
+
+    state.channel.bind('client-mute-state', (data) => {
+        if (!data || data.from !== state.peerId) return;
+        log(`Peer mute: ${data.muted}`, 'info');
+        // Apenas log — o áudio remote já reflete o estado
+    });
+}
+
+function triggerSig(eventName, payload) {
+    if (!state.channel) { log('sem canal para ' + eventName, 'warn'); return; }
+    try {
+        state.channel.trigger(eventName, payload);
+        log(`📤 ${eventName} → ${payload.to || 'room'}`, 'info');
+    } catch (e) {
+        log(`Erro trigger ${eventName}: ${e.message}`, 'err');
+    }
+}
+
+// ==========================================================================
+// INICIAR CHAMADA (caller)
+// ==========================================================================
+function initiateCall() {
+    if (!state.peerId) { toast('Defina um peer', 'error'); return; }
+    state.isCaller = true;
+    log(`📞 Ligando para ${state.peerId}…`, 'info');
+    showCall(state.peerId, true);
+    setCallStatus('chamando…');
+    const dg = document.getElementById('dial-group');
+    if (dg) dg.style.display = 'none';
+
+    triggerSig('client-call-offer', { from: state.myId, to: state.peerId });
+
+    // Timeout 30s
+    state.callOfferTimer = setTimeout(() => {
+        if (!state.callActive && state.isCaller) {
+            log('Timeout — sem resposta em 30s', 'warn');
+            toast('Sem resposta', 'error');
+            document.getElementById('peer-avatar').classList.remove('calling');
+            setCallStatus('pronto — clique em Ligar');
+            if (dg) dg.style.display = '';
+        }
+    }, 30000);
+}
+
+// ==========================================================================
+// RECEBER CHAMADA — SweetAlert modal
+// ==========================================================================
+function showIncomingCallModal(fromId) {
+    state.incomingSwal = Swal.fire({
+        title: fromId + ' está ligando',
+        html: `
+            <div class="incoming-call-ring"><i class="ti ti-phone-call"></i></div>
+            <div style="margin-top:14px;">Chamada de voz — aceitar?</div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="ti ti-phone" style="font-size:22px;"></i>',
+        cancelButtonText:  '<i class="ti ti-phone-off" style="font-size:22px;"></i>',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        timer: 30000,
+        timerProgressBar: true,
+        customClass: { popup: 'call-modal' },
+    }).then((result) => {
+        state.incomingSwal = null;
+        if (result.isConfirmed) acceptCall(fromId);
+        else rejectCall(fromId, result.dismiss === Swal.DismissReason.timer ? 'timeout' : 'rejected');
+    });
+}
+
+async function acceptCall(fromId) {
+    state.peerId = fromId;
+    state.isCaller = false;
+    log(`✅ Aceitou chamada de ${fromId}`, 'ok');
+    triggerSig('client-call-accept', { from: state.myId, to: fromId });
+    showCall(fromId, false);
+    setCallStatus('conectando…');
+    // Callee também publica e anuncia
+    startCallMedia(false);
+}
+
+function rejectCall(fromId, reason) {
+    log(`❌ Rejeitou ${fromId} (${reason})`, 'warn');
+    triggerSig('client-call-reject', { from: state.myId, to: fromId, reason });
+    toast('Chamada recusada', 'info');
+    setCallStatus('pronto — clique em Ligar');
+    const dg = document.getElementById('dial-group');
+    if (dg) dg.style.display = '';
+}
+
+// ==========================================================================
+// MEDIA via SFU (director-ca.f5hlive.com.br:443)
+// --------------------------------------------------------------------------
+// Cada peer:
+//   1. getUserMedia(audio)
+//   2. POST /api/director/publish → obtém jwt + wsUrl
+//   3. WebSocket → SFU → publish offer → answer
+//   4. Quando publish active → announceJoin (client-join no Pusher)
+//   5. Ao receber client-join/client-hello → subscribe ao stream do peer
+// ==========================================================================
+async function startCallMedia(isCaller) {
+    if (state.callActive) return;
+    state.callActive = true;
+    state.isCaller = isCaller;
+    try {
+        log('Capturando áudio (getUserMedia)...', 'info');
+        state.localStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false,
+        });
+        log('🎤 Áudio capturado: ' + state.localStream.getAudioTracks().length + ' track(s)', 'ok');
+
+        // Auth publish
+        log('Authenticating publish...', 'info');
+        const response = await fetch(`${SERVER_URL}/api/director/publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: state.token, streamName: state.localStreamName })
+        });
+        if (!response.ok) throw new Error(`Publish HTTP ${response.status}: ${await response.text()}`);
+        const data = await response.json();
+        log('Publish auth OK.', 'ok');
+
+        const jwt = data.jwt || data.data?.jwt;
+        const urls = data.data?.urls || data.urls;
+        let wsUrl = null;
+        if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+        else if (typeof urls === 'string') wsUrl = urls;
+        else if (data.url) wsUrl = data.url;
+        if (!wsUrl || !jwt) throw new Error('Missing wsUrl or jwt');
+
+        // Servidor espera ?token=
+        const wsUrlWithToken = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(jwt);
+        state.localWs = new WebSocket(wsUrlWithToken);
+        state.localWs.onopen = () => { log('Publish WS open', 'ok'); setupPublishPc(); };
+        state.localWs.onmessage = (e) => onPublishMessage(e);
+        state.localWs.onerror = () => log('Publish WS error', 'err');
+        state.localWs.onclose = () => log('Publish WS closed', 'warn');
+
+    } catch (err) {
+        log('startCallMedia error: ' + err.message, 'err');
+        toast('Erro: ' + err.message, 'error');
+        endCall(true);
+    }
+}
+
+function setupPublishPc() {
+    state.localPc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(track => {
+            state.localPc.addTrack(track, state.localStream);
+            log('Track publish: ' + track.kind, 'ok');
+        });
+    }
+    state.localPc.onicecandidate = (e) => {
+        if (e.candidate && state.localWs && state.localWs.readyState === WebSocket.OPEN) {
+            try { state.localWs.send(JSON.stringify({ type: 'candidate', candidate: e.candidate })); } catch (err) {}
+        }
+    };
+    state.localPc.oniceconnectionstatechange = () => {
+        log('Publish ICE: ' + state.localPc.iceConnectionState,
+            state.localPc.iceConnectionState === 'connected' ? 'ok' : 'info');
+    };
+    state.localPc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false })
+        .then(offer => state.localPc.setLocalDescription(offer))
+        .then(() => {
+            log('Sending publish offer...', 'info');
+            state.localWs.send(JSON.stringify({
+                type: 'cmd', transId: Date.now().toString(), name: 'publish',
+                data: { sdp: state.localPc.localDescription.sdp }
+            }));
+        })
+        .catch(err => log('Publish offer error: ' + err.message, 'err'));
+}
+
+function onPublishMessage(e) {
+    try {
+        const msg = JSON.parse(e.data);
+        let sdp = null;
+        if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+        else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+
+        if (sdp) {
+            log('Publish answer received', 'ok');
+            state.localPc.setRemoteDescription({ type: 'answer', sdp })
+                .catch(err => log('Publish SRD error: ' + err.message, 'err'));
+        } else if (msg.type === 'candidate' && msg.candidate) {
+            state.localPc.addIceCandidate(msg.candidate).catch(() => {});
+        } else if (msg.type === 'event' && msg.name === 'active') {
+            if (!state.localPublishActive) {
+                state.localPublishActive = true;
+                log('✓ Publish ACTIVE — anunciando join', 'ok');
+                announceJoin();
+                setCallStatus('conectando…', false);
+            }
+        } else if (msg.type === 'error') {
+            log('Publish server error: ' + msg.message, 'err');
+        }
+    } catch (err) {
+        log('Publish msg error: ' + err.message, 'err');
+    }
+}
+
+function announceJoin() {
+    triggerSig('client-join', { from: state.myId, streamName: state.localStreamName });
+}
+
+// ==========================================================================
+// SUBSCRIBE ao stream remoto (SFU)
+// ==========================================================================
+function subscribeToRemote() {
+    if (!state.remoteStreamName) { log('sem remoteStreamName p/ subscribe', 'warn'); return; }
+    if (state.remoteWs) { log('já subscrito', 'info'); return; }
+    log(`Subscribing to ${state.peerId} (${state.remoteStreamName})...`, 'info');
+
+    fetch(`${SERVER_URL}/api/director/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamAccountId: state.accountId, streamName: state.remoteStreamName })
+    })
+    .then(r => { if (!r.ok) throw new Error(`Subscribe HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+        const jwt = data.jwt || data.data?.jwt;
+        const urls = data.data?.urls || data.urls;
+        let wsUrl = null;
+        if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+        else if (typeof urls === 'string') wsUrl = urls;
+        else if (data.url) wsUrl = data.url;
+        if (!wsUrl || !jwt) throw new Error('Missing wsUrl or jwt');
+
+        const wsUrlWithToken = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(jwt);
+        state.remoteWs = new WebSocket(wsUrlWithToken);
+        state.remoteWs.onopen = () => { log('Subscribe WS open', 'ok'); setupSubscribePc(); };
+        state.remoteWs.onmessage = (e) => onSubscribeMessage(e);
+        state.remoteWs.onerror = () => log('Subscribe WS error', 'err');
+        state.remoteWs.onclose = () => log('Subscribe WS closed', 'warn');
+    })
+    .catch(err => {
+        log('Subscribe error: ' + err.message, 'err');
+        // Retry em 3s (publisher pode ainda não estar pronto)
+        setTimeout(() => { if (state.callActive && !state.remoteWs) subscribeToRemote(); }, 3000);
+    });
+}
+
+function setupSubscribePc() {
+    state.remotePc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    state.remotePc.addTransceiver('audio', { direction: 'recvonly' });
+
+    state.remotePc.ontrack = (event) => {
+        log('🎧 Track remoto recebido: ' + event.track.kind, 'ok');
+        if (event.track.kind === 'audio') {
+            state.remoteAudio = new Audio();
+            state.remoteAudio.autoplay = true;
+            state.remoteAudio.srcObject = event.streams[0];
+            state.remoteAudio.play().catch(() => {});
+            setCallStatus('em chamada', true);
+            startTimer();
+            document.getElementById('peer-avatar').classList.remove('calling');
+        }
+    };
+
+    state.remotePc.onicecandidate = (e) => {
+        if (e.candidate && state.remoteWs && state.remoteWs.readyState === WebSocket.OPEN) {
+            try { state.remoteWs.send(JSON.stringify({ type: 'candidate', candidate: e.candidate })); } catch (err) {}
+        }
+    };
+    state.remotePc.oniceconnectionstatechange = () => {
+        const st = state.remotePc.iceConnectionState;
+        log('Subscribe ICE: ' + st, st === 'connected' ? 'ok' : (st === 'failed' ? 'err' : 'info'));
+        if (st === 'connected') { setCallStatus('em chamada', true); startTimer(); }
+    };
+
+    state.remotePc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false })
+        .then(offer => state.remotePc.setLocalDescription(offer))
+        .then(() => {
+            log('Sending view offer...', 'info');
+            state.remoteWs.send(JSON.stringify({
+                type: 'cmd', transId: Date.now().toString(), name: 'view',
+                data: { sdp: state.remotePc.localDescription.sdp }
+            }));
+        })
+        .catch(err => log('View offer error: ' + err.message, 'err'));
+}
+
+function onSubscribeMessage(e) {
+    try {
+        const msg = JSON.parse(e.data);
+        let sdp = null;
+        if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+        else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+
+        if (sdp) {
+            if (!sdp.trim()) {
+                log('Publisher ainda não pronto — retry em 3s', 'warn');
+                setTimeout(() => {
+                    if (state.callActive && state.remotePc) {
+                        try { state.remotePc.close(); } catch(e){}
+                        state.remotePc = null;
+                        try { state.remoteWs.close(); } catch(e){}
+                        state.remoteWs = null;
+                        subscribeToRemote();
+                    }
+                }, 3000);
+                return;
+            }
+            log('Subscribe answer received', 'ok');
+            state.remotePc.setRemoteDescription({ type: 'answer', sdp })
+                .catch(err => log('Subscribe SRD error: ' + err.message, 'err'));
+        } else if (msg.type === 'candidate' && msg.candidate) {
+            state.remotePc.addIceCandidate(msg.candidate).catch(() => {});
+        } else if (msg.type === 'event' && msg.name === 'inactive') {
+            log('Peer saiu (inactive)', 'warn');
+            endCall(false);
+        } else if (msg.type === 'error') {
+            log('Subscribe server error: ' + msg.message, 'err');
+        }
+    } catch (err) {
+        log('Subscribe msg error: ' + err.message, 'err');
+    }
+}
+
+// ==========================================================================
+// CONTROLES
+// ==========================================================================
+document.getElementById('btn-mute').addEventListener('click', () => {
+    if (!state.localStream) return;
+    state.isMuted = !state.isMuted;
+    state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+    const btn = document.getElementById('btn-mute');
+    btn.classList.toggle('muted', state.isMuted);
+    btn.innerHTML = state.isMuted ? '<i class="ti ti-microphone-off"></i>' : '<i class="ti ti-microphone"></i>';
+    triggerSig('client-mute-state', { from: state.myId, to: state.peerId, muted: state.isMuted });
+    toast(state.isMuted ? 'Microfone mutado' : 'Microfone ativo', state.isMuted ? 'warning' : 'success', 1200);
+});
+
+document.getElementById('btn-speaker').addEventListener('click', () => {
+    if (!state.remoteAudio) return;
+    state.remoteAudio.volume = state.remoteAudio.volume > 0.5 ? 0.3 : 1.0;
+    const btn = document.getElementById('btn-speaker');
+    btn.innerHTML = state.remoteAudio.volume > 0.5 ? '<i class="ti ti-volume"></i>' : '<i class="ti ti-volume-2"></i>';
+    toast('Volume: ' + Math.round(state.remoteAudio.volume * 100) + '%', 'info', 1200);
+});
+
+document.getElementById('btn-end').addEventListener('click', () => endCall(true));
+
+function endCall(notifyPeer = true) {
+    log('📵 Encerrando chamada…', 'warn');
+    stopTimer();
+    if (notifyPeer && state.peerId) {
+        triggerSig('client-call-end', { from: state.myId, to: state.peerId });
+    }
+    // Fecha publish
+    if (state.localPc) { try { state.localPc.close(); } catch(e){} state.localPc = null; }
+    if (state.localWs) { try { state.localWs.close(); } catch(e){} state.localWs = null; }
+    if (state.localStream) { state.localStream.getTracks().forEach(t => t.stop()); state.localStream = null; }
+    state.localPublishActive = false;
+    // Fecha subscribe
+    if (state.remotePc) { try { state.remotePc.close(); } catch(e){} state.remotePc = null; }
+    if (state.remoteWs) { try { state.remoteWs.close(); } catch(e){} state.remoteWs = null; }
+    if (state.remoteAudio) { state.remoteAudio.srcObject = null; state.remoteAudio = null; }
+    state.remoteStreamName = null;
+    // Reset UI
+    state.callActive = false;
+    state.isMuted = false;
+    if (state.callOfferTimer) { clearTimeout(state.callOfferTimer); state.callOfferTimer = null; }
+    document.getElementById('btn-mute').classList.remove('muted');
+    document.getElementById('btn-mute').innerHTML = '<i class="ti ti-microphone"></i>';
+    document.getElementById('peer-avatar').classList.remove('calling');
+    setCallStatus('pronto — clique em Ligar');
+    const dg = document.getElementById('dial-group');
+    if (dg) dg.style.display = '';
+    toast('Chamada encerrada', 'info', 1500);
+}
+
+// ==========================================================================
+// DEBUG
+// ==========================================================================
+document.getElementById('btn-debug').addEventListener('click', () => {
+    debugPanel.classList.toggle('open');
+});
+
+// Enter keys
+document.getElementById('input-my-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('input-peer-id').focus(); });
+document.getElementById('input-peer-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-connect').click(); });
+
+log('Audio Call v2.0 (SFU) carregado', 'ok');
+log('SERVER_URL: ' + SERVER_URL, 'info');
+log('PUSHER: cluster=custom key=' + PUSHER_KEY, 'info');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="cache-control" content="max-age=0" />
+	<meta http-equiv="cache-control" content="no-cache" />
+	<meta http-equiv="expires" content="0" />
+	<meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
+	<meta http-equiv="pragma" content="no-cache" />
+    <title>Live Studio - Broadcast</title>
+    <style>
+        :root {
+            --bg-body: #09090b;
+            --bg-card: #18181b;
+            --bg-input: #27272a;
+            --text-main: #fafafa;
+            --text-muted: #a1a1aa;
+            --primary: #8b5cf6; /* Roxo moderno */
+            --primary-hover: #7c3aed;
+            --danger: #ef4444;
+            --live-red: #ff3f3f;
+        }
+
+        * { box-sizing: border-box; outline: none; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- STAGE (VIDEO PREVIEW) --- */
+        .stage {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            position: relative;
+        }
+
+        .player-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            z-index: 1;
+            transform: scaleX(-1); /* Efeito espelho para a câmera */
+        }
+
+        /* Console de Debug (Adicionado) */
+        #debug-console {
+            position: absolute;
+            top: 10px; left: 10px;
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0,0,0,0.7);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 10px;
+            z-index: 100;
+            overflow-y: auto;
+            border: 1px solid #333;
+            pointer-events: none; /* Deixa clicar através */
+            border-radius: 4px;
+            opacity: 0.8;
+        }
+        .log-err { color: #ff5555; }
+        .log-warn { color: #ffaa00; }
+
+        .video-ui-layer {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 10;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 15%, transparent 85%, rgba(0,0,0,0.8) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-bar {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .live-badge {
+            background: var(--live-red);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 800;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            animation: pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .rec-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            background: rgba(0,0,0,0.5);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .rec-dot {
+            width: 10px; height: 10px;
+            background-color: #555;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+        .rec-dot.active {
+            background-color: var(--live-red);
+            box-shadow: 0 0 10px var(--live-red);
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* Controles de Stream */
+        .controls-area {
+            padding: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .input-bar {
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 6px;
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            max-width: 800px;
+            flex-wrap: wrap; /* Quebra linha em mobile */
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .input-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+
+        .stream-input {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #fff;
+            font-size: 14px;
+            padding: 6px 8px;
+            min-width: 150px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .stream-input:focus { border-color: var(--primary); background: rgba(0,0,0,0.3); }
+        
+        .stream-select {
+            background: #27272a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn-action {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn-action:disabled { background: #444; cursor: not-allowed; transform: none; color: #888; }
+        
+        .btn-stop { background: var(--danger); }
+        .btn-stop:hover { background: #dc2626; }
+
+        /* --- CHAT SECTION --- */
+        .sidebar {
+            width: 340px;
+            background: var(--bg-card);
+            border-left: 1px solid #27272a;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 16px;
+            border-bottom: 1px solid #27272a;
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-status-dot {
+            width: 8px; height: 8px;
+            background-color: #555;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #555;
+            transition: all 0.3s;
+        }
+        .chat-status-dot.online { background-color: #00ff88; box-shadow: 0 0 8px #00ff88; }
+
+        .chat-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: #333 transparent;
+        }
+
+        .msg {
+            font-size: 14px;
+            line-height: 1.4;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .msg .user {
+            font-weight: 700;
+            margin-right: 6px;
+            font-size: 13px;
+        }
+        
+        .msg.me {
+            align-self: flex-end;
+            background: #27272a;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border-bottom-right-radius: 2px;
+            max-width: 90%;
+        }
+        .msg.me .user { color: var(--primary); display: block; margin-bottom: 2px; text-align: right; font-size: 11px;}
+        
+        .msg.other {
+            align-self: flex-start;
+        }
+        .msg.other .user { color: #adfa1d; }
+
+        .chat-input-wrapper {
+            padding: 16px;
+            border-top: 1px solid #27272a;
+            background: var(--bg-card);
+        }
+        
+        .chat-box {
+            display: flex;
+            gap: 8px;
+            background: #09090b;
+            border: 1px solid #333;
+            padding: 6px;
+            border-radius: 24px;
+            transition: border-color 0.2s;
+        }
+        .chat-box:focus-within { border-color: var(--primary); }
+
+        .emoji-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            padding: 0 8px;
+            cursor: pointer;
+        }
+        .emoji-btn:hover { color: #fff; }
+
+        .chat-field {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            padding: 6px 0;
+            font-size: 14px;
+            resize: none;
+            height: 32px;
+            line-height: 18px;
+            font-family: inherit;
+        }
+        .chat-field::placeholder { color: #555; }
+
+        .send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .send-btn:hover { background: var(--primary-hover); }
+
+        /* Emoji Picker Grid */
+        .emoji-grid {
+            position: absolute;
+            bottom: 70px;
+            right: 20px;
+            background: #27272a;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 50;
+        }
+        .emoji-grid.active { display: grid; }
+        .e-item {
+            background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 4px; border-radius: 4px;
+        }
+        .e-item:hover { background: rgba(255,255,255,0.1); }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .controls-area { flex-direction: column; align-items: stretch; }
+            .input-bar { flex-direction: column; gap: 10px; }
+            .stream-input { width: 100%; }
+            .btn-action { width: 100%; justify-content: center; }
+            #debug-console { width: 200px; font-size: 9px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ÁREA DO STUDIO (STREAMER) -->
+    <div class="stage">
+        <div class="player-wrapper">
+            <!-- Debug Console (Novo) -->
+            <div id="debug-console">
+                <div>> Sistema inicializado...</div>
+            </div>
+
+            <!-- Preview da Câmera Local -->
+            <video id="localVideo" autoplay playsinline muted></video>
+
+            <div class="video-ui-layer">
+                <div class="top-bar">
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="liveBadge" class="live-badge" style="opacity: 0;">● AO VIVO</div>
+                        <div class="rec-indicator">
+                            <div id="recDot" class="rec-dot"></div>
+                            <span id="recStatus">Offline</span>
+                        </div>
+                    </div>
+                    <div style="font-size:0.8rem; opacity:0.7;">1080p • 60fps</div>
+                </div>
+
+                <div class="controls-area">
+                    <div class="input-bar">
+                        <!-- Nome do Stream -->
+                        <div class="input-group">
+                            <label class="input-label">Nome do Stream</label>
+                            <input type="text" id="streamName" class="stream-input" value="test123" placeholder="Ex: live-teste">
+                        </div>
+                        
+                        <!-- Token de Publicação -->
+                        <div class="input-group">
+                            <label class="input-label">Publishing Token</label>
+                            <input type="password" id="publishingToken" class="stream-input" value="56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa" placeholder="Cole seu token aqui">
+                        </div>
+
+                        <!-- Seletor de Bitrate -->
+                        <div class="input-group">
+                            <label class="input-label">Qualidade (Bitrate)</label>
+                            <select id="bitrateSelect" class="stream-select">
+                                <option value="auto">Automático</option>
+                                <option value="2500000">Alta (2.5 Mbps)</option>
+                                <option value="1200000">Média (1.2 Mbps)</option>
+                                <option value="500000">Baixa (0.5 Mbps)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button id="btnAction" class="btn-action">
+                        <span>INICIAR TRANSMISSÃO</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÁREA DO CHAT -->
+    <div class="sidebar">
+        <div class="chat-header">
+            Stream Chat
+            <div id="chatStatusDot" class="chat-status-dot" title="Status do Chat"></div>
+        </div>
+        
+        <div class="chat-scroll" id="chatContainer">
+            <div class="msg other">
+                <span class="user" style="color:var(--primary)">Sistema</span>
+                Chat conectado. Boa sorte na transmissão!
+            </div>
+        </div>
+
+        <div class="chat-input-wrapper">
+            <div style="position:relative;">
+                <div id="emojiPicker" class="emoji-grid"></div>
+                <div class="chat-box">
+                    <button id="toggleEmoji" class="emoji-btn">😊</button>
+                    <input type="text" id="chatInput" class="chat-field" placeholder="Falar com a audiência...">
+                    <button id="sendChat" class="send-btn">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://sdk.f5hlive.com.br/pusher/8.5.0/pusher.min.js"></script>
+
+    <script>
+        // --- 1. HELPER DE LOG VISÍVEL ---
+        function log(msg, type = 'info') {
+            const consoleEl = document.getElementById('debug-console');
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            const color = type === 'error' ? 'log-err' : (type === 'warn' ? 'log-warn' : '');
+            consoleEl.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${msg}`);
+        }
+
+        // --- 2. CONFIGURAÇÃO ---
+        const SERVER_URL = (location.hostname === 'localhost') 
+            ? `${location.protocol}//${location.hostname}:443` 
+            : 'https://director-ca.f5hlive.com.br:443';
+
+        const pusherKey = '11215d6822a0854b4550';
+        const pusherCluster = 'custom';
+        
+        const chatChannelName = 'my-channel';
+        const chatEvent = 'my-event';
+        const clientChatEvent = 'client-my-event';
+
+        let mediaStream = null;
+        let peerConnection = null;
+        let wsConnection = null;
+        let isBroadcasting = false;
+        let channel = null;
+
+        const ui = {
+            video: document.getElementById('localVideo'),
+            btn: document.getElementById('btnAction'),
+            recDot: document.getElementById('recDot'),
+            recStatus: document.getElementById('recStatus'),
+            liveBadge: document.getElementById('liveBadge'),
+            chatContainer: document.getElementById('chatContainer'),
+            chatInput: document.getElementById('chatInput'),
+            chatStatusDot: document.getElementById('chatStatusDot')
+        };
+
+        // --- 3. CHAT REAL ---
+		// SDK Resolve só ajuste se necessário
+        function initPusherChat() {
+            log("Inicializando Pusher Chat...");
+            const pusher = new Pusher(pusherKey, {
+                cluster: pusherCluster
+            });
+
+            pusher.connection.bind('connected', () => {
+                log("Pusher: Conectado");
+                ui.chatStatusDot.classList.add('online');
+                addMessage('Sistema', 'Chat conectado com sucesso.', false);
+            });
+
+            pusher.connection.bind('error', (err) => {
+                log(`Pusher Error: ${err.error}`, 'error');
+                ui.chatStatusDot.classList.remove('online');
+            });
+
+            channel = pusher.subscribe(chatChannelName);
+            channel.bind(chatEvent, (data) => {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                addMessage(parsed.user || 'Visitante', parsed.message || '', false);
+            });
+            channel.bind(clientChatEvent, (data) => {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                addMessage(parsed.user || 'Streamer', parsed.message || '', true);
+            });
+        }
+
+        function addMessage(user, text, isMe = false) {
+            const div = document.createElement('div');
+            div.className = `msg ${isMe ? 'me' : 'other'}`;
+            div.innerHTML = `<span class="user">${user}</span> ${text}`;
+            ui.chatContainer.appendChild(div);
+            ui.chatContainer.scrollTop = ui.chatContainer.scrollHeight;
+        }
+
+        function handleSend() {
+            const text = ui.chatInput.value.trim();
+            if(text && channel) {
+                channel.trigger(clientChatEvent, { user: 'Host (Você)', message: text });
+                ui.chatInput.value = "";
+                document.getElementById('emojiPicker').classList.remove('active');
+            }
+        }
+
+        // --- 4. LÓGICA DE BROADCAST ---
+        
+        // Função para aplicar Bitrate
+        async function applyBitrate(peerConnection, bitrateValue) {
+            if (bitrateValue === 'auto') return;
+
+            const bps = parseInt(bitrateValue);
+            const senders = peerConnection.getSenders();
+
+            for (const sender of senders) {
+                if (sender.track.kind === 'video') {
+                    try {
+                        const params = sender.getParameters();
+                        if (!params.encodings) params.encodings = [{}];
+                        params.encodings[0].maxBitrate = bps;
+                        await sender.setParameters(params);
+                        log(`Bitrate definido para: ${(bps/1000)} kbps`);
+                    } catch (e) {
+                        log("Erro ao definir bitrate (não crítico)", 'warn');
+                    }
+                }
+            }
+        }
+
+        async function startBroadcast() {
+            if(isBroadcasting) return;
+
+            const token = document.getElementById('publishingToken').value;
+            const streamName = document.getElementById('streamName').value;
+            const bitrate = document.getElementById('bitrateSelect').value;
+
+            if(!token || !streamName) {
+                log("Erro: Token ou Nome do Stream vazio", 'error');
+                alert("Preencha o Token e o Nome do Stream");
+                return;
+            }
+
+            // Verificação de Segurança (HTTPS)
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                log("Erro: Protocolo não seguro (use HTTPS)", 'error');
+                alert("Para transmitir, você deve acessar esta página via HTTPS ou Localhost.");
+                return;
+            }
+
+            ui.btn.disabled = true;
+            ui.btn.innerHTML = '<span>Solicitando Acesso...</span>';
+
+            try {
+                log("Solicitando permissões de Câmera/Microfone...");
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720, frameRate: 30 },
+                    audio: true
+                });
+                
+                ui.video.srcObject = mediaStream;
+                ui.btn.innerHTML = '<span>Conectando Servidor...</span>';
+
+                log("Autenticando no Diretor...");
+                const response = await fetch(`${SERVER_URL}/api/director/publish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, streamName: streamName })
+                });
+
+                if(!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Servidor HTTP ${response.status}: ${errText}`);
+                }
+
+                const data = await response.json();
+                log("Resposta do servidor recebida.");
+
+                // Extrair URL
+                let wsUrl = null;
+                const jwt = data.jwt || data.data?.jwt;
+                const urls = data.data?.urls || data.urls;
+                
+                if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+                else if (typeof urls === 'string') wsUrl = urls;
+                else if (data.url) wsUrl = data.url;
+
+                if (!wsUrl) throw new Error("Nenhuma URL WebSocket encontrada.");
+                if (wsUrl.startsWith('http')) wsUrl = wsUrl.replace('http', 'ws');
+                if (jwt) wsUrl += (wsUrl.includes('?')?'&':'?') + 'token=' + jwt;
+
+                log(`Conectando WS: ${wsUrl.substring(0,40)}...`);
+
+                ui.btn.innerHTML = '<span>Iniciando P2P...</span>';
+                wsConnection = new WebSocket(wsUrl);
+
+                wsConnection.onopen = async () => {
+                    log("WebSocket aberto. Criando PeerConnection...");
+                    peerConnection = new RTCPeerConnection({ 
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] 
+                    });
+
+                    // Adicionar Tracks
+                    mediaStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, mediaStream);
+                    });
+
+                    // Aplicar Bitrate
+                    await applyBitrate(peerConnection, bitrate);
+
+                    peerConnection.onicecandidate = (e) => {
+                        if (e.candidate) wsConnection.send(JSON.stringify({ type: 'candidate', candidate: e.candidate }));
+                    };
+
+                    // Criar Oferta
+                    peerConnection.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false })
+                        .then(offer => peerConnection.setLocalDescription(offer))
+                        .then(() => {
+                            log("Enviando Offer SDP...");
+                            wsConnection.send(JSON.stringify({
+                                type: 'cmd',
+                                transId: Date.now().toString(),
+                                name: 'publish',
+                                data: { sdp: peerConnection.localDescription.sdp }
+                            }));
+                        });
+                };
+
+                wsConnection.onmessage = (e) => {
+                    try {
+                        const msg = JSON.parse(e.data);
+                        let sdp = null;
+                        if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+                        else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+                        
+                        if (sdp) {
+                            log("Answer SDP recebida. Live iniciada!");
+                            peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }))
+                                .then(() => setBroadcastingState(true));
+                        }
+                    } catch(err) {
+                        log("Erro ao parsear WS msg", 'error');
+                    }
+                };
+
+                wsConnection.onerror = (e) => { throw new Error("Erro na conexão WebSocket"); };
+                
+                wsConnection.onclose = () => {
+                    log("WebSocket fechado abruptamente", 'warn');
+                    if(isBroadcasting) stopBroadcast();
+                };
+
+            } catch (err) {
+                log(`FALHA: ${err.message}`, 'error');
+                alert("Erro ao iniciar: " + err.message);
+                stopBroadcast();
+            }
+        }
+
+        function stopBroadcast() {
+            log("Encerrando transmissão...");
+            if(wsConnection) wsConnection.close();
+            if(peerConnection) peerConnection.close();
+            
+            if(mediaStream) {
+                mediaStream.getTracks().forEach(t => t.stop());
+                mediaStream = null;
+            }
+
+            ui.video.srcObject = null;
+            setBroadcastingState(false);
+        }
+
+        function setBroadcastingState(isLive) {
+            isBroadcasting = isLive;
+            if(isLive) {
+                ui.btn.disabled = false;
+                ui.btn.className = 'btn-action btn-stop';
+                ui.btn.innerHTML = '<span>PARAR TRANSMISSÃO</span>';
+                ui.recDot.classList.add('active');
+                ui.recStatus.textContent = "AO VIVO";
+                ui.recStatus.style.color = "var(--live-red)";
+                ui.liveBadge.style.opacity = 1;
+            } else {
+                ui.btn.disabled = false;
+                ui.btn.className = 'btn-action';
+                ui.btn.innerHTML = '<span>INICIAR TRANSMISSÃO</span>';
+                ui.recDot.classList.remove('active');
+                ui.recStatus.textContent = "Offline";
+                ui.recStatus.style.color = "#fff";
+                ui.liveBadge.style.opacity = 0;
+            }
+        }
+
+        // --- 5. EMOJIS ---
+        const emojis = ['😀','😂','😍','🔥','❤️','👍','🎉','🚀','😎','👀','💯','🤔'];
+        const picker = document.getElementById('emojiPicker');
+        emojis.forEach(e => {
+            const btn = document.createElement('button');
+            btn.className = 'e-item';
+            btn.textContent = e;
+            btn.onclick = () => {
+                ui.chatInput.value += e;
+                ui.chatInput.focus();
+            };
+            picker.appendChild(btn);
+        });
+
+        document.getElementById('toggleEmoji').onclick = (e) => {
+            e.stopPropagation();
+            picker.classList.toggle('active');
+        };
+        document.onclick = (e) => {
+            if(!picker.contains(e.target) && e.target.id !== 'toggleEmoji') picker.classList.remove('active');
+        };
+
+        // --- 6. EVENTOS ---
+        ui.btn.onclick = () => isBroadcasting ? stopBroadcast() : startBroadcast();
+        document.getElementById('sendChat').onclick = handleSend;
+        ui.chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSend(); });
+
+        // Iniciar Chat ao carregar
+        window.onload = () => {
+            initPusherChat();
+            log("Sistema pronto. Aguardando início.");
+        };
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F5HLIVE · Live</title>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden;height:100vh;width:100vw}
+#video{width:100vw;height:100vh;object-fit:cover;background:#000;cursor:pointer}
+
+.controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;padding:20px;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 100%);z-index:20;transition:opacity .3s}
+.controls.hidden{opacity:0;pointer-events:none}
+.ctrl-btn{width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;transition:all .2s;background:rgba(255,255,255,.15);backdrop-filter:blur(8px)}
+.ctrl-btn:hover{background:rgba(244,63,94,.8);transform:scale(1.1)}
+.ctrl-btn.primary{width:72px;height:72px;font-size:2rem;background:#f43f5e}
+.ctrl-btn.primary:hover{background:#e11d48}
+.ctrl-btn i{font-size:inherit}
+.ctrl-btn.danger{background:rgba(239,68,68,.8)}
+.ctrl-btn.danger:hover{background:rgba(220,38,38,1)}
+
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;background:rgba(0,0,0,.75);z-index:10;transition:opacity .3s}
+.overlay.hidden{opacity:0;pointer-events:none}
+.overlay-icon{font-size:4rem;color:#f43f5e;opacity:.8}
+.overlay h1{font-size:1.5rem;font-weight:700}
+.overlay p{font-size:.85rem;color:#a1a1aa;text-align:center;max-width:340px}
+.btn-play-big{width:80px;height:80px;border-radius:50%;background:#f43f5e;border:none;color:#fff;font-size:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.btn-play-big:hover{background:#e11d48;transform:scale(1.08)}
+.btn-play-big:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+.settings-btn{position:absolute;top:16px;right:16px;width:44px;height:44px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);border-radius:50%;color:#a1a1aa;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:30;transition:all .2s;backdrop-filter:blur(8px);font-size:1.2rem}
+.settings-btn:hover{background:rgba(244,63,94,.3);color:#fff;border-color:#f43f5e}
+
+.live-badge{position:absolute;top:16px;left:16px;display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(0,0,0,.7);border-radius:20px;font-size:.7rem;font-weight:700;z-index:30;opacity:0;transition:opacity .3s;backdrop-filter:blur(8px)}
+.live-badge.visible{opacity:1}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(4px)}
+.modal-bg.visible{display:flex}
+.modal{background:#18181b;border:1px solid #3f3f46;border-radius:16px;padding:28px;width:90%;max-width:420px}
+.modal h2{font-size:1.1rem;margin-bottom:6px;font-weight:700;display:flex;align-items:center;gap:8px}
+.modal h2 i{color:#f43f5e}
+.modal .url-hint{font-size:.7rem;color:#52525b;font-family:monospace;margin-bottom:20px;word-break:break-all}
+.modal label{display:block;font-size:.7rem;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;margin-top:14px}
+.modal input{width:100%;padding:10px 12px;background:#27272a;border:1px solid #3f3f46;border-radius:8px;color:#fff;font-size:.85rem;font-family:monospace}
+.modal input:focus{outline:none;border-color:#f43f5e}
+.modal-actions{display:flex;gap:10px;margin-top:24px}
+.modal-actions button{flex:1;padding:12px;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-cancel{background:#27272a;color:#a1a1aa}
+.btn-confirm{background:#f43f5e;color:#fff}
+.btn-confirm:hover{background:#e11d48}
+
+.toast{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);padding:10px 24px;background:rgba(244,63,94,.95);color:#fff;border-radius:8px;font-size:.8rem;z-index:40;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.visible{opacity:1}
+</style>
+</head>
+<body>
+
+<video id="video" playsinline></video>
+
+<button class="settings-btn" id="settingsBtn" title="Configurar">
+  <i class="ti ti-adjustments"></i>
+</button>
+
+<div class="live-badge" id="liveBadge">
+  <span class="live-dot"></span>
+  <span>LIVE</span>
+</div>
+
+<div class="controls hidden" id="controls">
+  <button class="ctrl-btn" id="btnMute" title="Som">
+    <i class="ti ti-volume-2"></i>
+  </button>
+  <button class="ctrl-btn primary" id="btnStop" title="Parar">
+    <i class="ti ti-player-stop-filled"></i>
+  </button>
+  <button class="ctrl-btn" id="btnFs" title="Tela cheia">
+    <i class="ti ti-maximize"></i>
+  </button>
+</div>
+
+<div class="overlay" id="overlay">
+  <i class="ti ti-broadcast overlay-icon"></i>
+  <h1 id="overlayTitle">Assistir Live</h1>
+  <p id="overlaySub">Clique no play para começar</p>
+  <button class="btn-play-big" id="btnPlay">
+    <i class="ti ti-player-play-filled"></i>
+  </button>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2><i class="ti ti-adjustments"></i> Configurar Live</h2>
+    <div class="url-hint" id="urlHint">wss://director-ca.f5hlive.com.br/live/a3RD6P/teste1.flv</div>
+    <label>Host</label>
+    <input type="text" id="mHost" value="director-ca.f5hlive.com.br">
+    <label>Porta (vazio = padrão)</label>
+    <input type="text" id="mPort" value="" placeholder="vazio = 443">
+    <label>Account ID</label>
+    <input type="text" id="mAccount" value="a3RD6P">
+    <label>Stream Name</label>
+    <input type="text" id="mStream" value="teste1">
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancel"><i class="ti ti-x"></i> Cancelar</button>
+      <button class="btn-confirm" id="btnConfirm"><i class="ti ti-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let player = null;
+let isMuted = false;
+let config = { host: 'director-ca.f5hlive.com.br', port: '', account: 'a3RD6P', stream: 'teste1' };
+
+function getUrl() {
+  const p = config.port ? ':' + config.port : '';
+  return `wss://${config.host}${p}/live/${config.account}/${config.stream}.flv`;
+}
+
+function updateUrlHint() {
+  $('urlHint').textContent = getUrl();
+}
+
+function showToast(msg) {
+  $('toast').textContent = msg;
+  $('toast').classList.add('visible');
+  setTimeout(() => $('toast').classList.remove('visible'), 3000);
+}
+
+function play() {
+  const url = getUrl();
+  $('overlay').classList.add('hidden');
+  $('btnPlay').disabled = true;
+
+  try {
+    if (typeof mpegts === 'undefined') throw new Error('mpegts.js não carregou');
+    player = mpegts.createPlayer({ type: 'flv', url, isLive: true, cors: true }, {
+      enableWorker: false, lazyLoad: false, autoCleanupSourceBuffer: true,
+      stashInitialSize: 256, liveBufferLatencyChasing: false
+    });
+  } catch (e) { showToast(e.message); $('btnPlay').disabled = false; return; }
+
+  player.on(mpegts.Events.ERROR, function(errType) {
+    showToast('Erro: ' + errType);
+    stop();
+  });
+  player.on(mpegts.Events.LOADING_COMPLETE, function() {
+    showToast('Stream finalizado');
+    stop();
+  });
+
+  try {
+    player.attachMediaElement($('video'));
+    player.load();
+    player.play().then(() => {
+      $('liveBadge').classList.add('visible');
+      $('controls').classList.remove('hidden');
+    }).catch(() => {});
+  } catch (e) { showToast(e.message); $('btnPlay').disabled = false; }
+}
+
+function stop() {
+  if (player) { try { player.destroy(); } catch(e){} player = null; }
+  $('video').src = '';
+  $('overlay').classList.remove('hidden');
+  $('liveBadge').classList.remove('visible');
+  $('controls').classList.add('hidden');
+  $('btnPlay').disabled = false;
+  $('overlayTitle').textContent = 'Assistir Live';
+  $('overlaySub').innerHTML = `Clique no play para começar`;
+}
+
+// Play button
+$('btnPlay').addEventListener('click', play);
+
+// Stop button
+$('btnStop').addEventListener('click', stop);
+
+// Mute toggle
+$('btnMute').addEventListener('click', () => {
+  const v = $('video');
+  v.muted = !v.muted;
+  isMuted = v.muted;
+  $('btnMute').innerHTML = isMuted ? '<i class="ti ti-volume-3"></i>' : '<i class="ti ti-volume-2"></i>';
+});
+
+// Fullscreen
+$('btnFs').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+});
+
+// Video click = stop
+$('video').addEventListener('click', () => { if (player) stop(); });
+
+// Settings modal
+$('settingsBtn').addEventListener('click', () => {
+  $('mHost').value = config.host;
+  $('mPort').value = config.port;
+  $('mAccount').value = config.account;
+  $('mStream').value = config.stream;
+  updateUrlHint();
+  $('modalBg').classList.add('visible');
+});
+$('btnCancel').addEventListener('click', () => $('modalBg').classList.remove('visible'));
+$('btnConfirm').addEventListener('click', () => {
+  config.host = $('mHost').value.trim() || config.host;
+  config.port = $('mPort').value.trim();
+  config.account = $('mAccount').value.trim() || config.account;
+  config.stream = $('mStream').value.trim() || config.stream;
+  $('modalBg').classList.remove('visible');
+  if (player) stop();
+  updateUrlHint();
+  showToast('Configuração salva');
+});
+
+// Close modal on bg click
+$('modalBg').addEventListener('click', e => { if (e.target === $('modalBg')) $('modalBg').classList.remove('visible'); });
+
+// Init
+updateUrlHint();
+</script>
+</body>
+</html>

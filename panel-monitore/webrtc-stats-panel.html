@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F5HLIVE · WebRTC Stats Monitor</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     F5HLIVE — WebRTC Stats Monitor
+     Sibling of rtmp-stats-panel.html — same visual DNA, teal accent
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --bg: #0a0a0a; --bg-elev: #141414; --bg-card: #1a1a1a;
+    --border: #2a2a2a; --border-strong: #3a3a3a;
+    --text: #e5e5e5; --text-muted: #888; --text-dim: #555;
+    --success: #10b981; --success-dim: rgba(16,185,129,0.15);
+    --danger: #ef4444;  --danger-dim:  rgba(239,68,68,0.15);
+    --warning: #f59e0b; --warning-dim: rgba(245,158,11,0.15);
+    --info: #3b82f6;   --info-dim:    rgba(59,130,246,0.15);
+    /* WebRTC brand accent: teal/emerald (NOT blue/indigo) */
+    --accent: #14b8a6; --accent-2: #2dd4bf; --accent-dim: rgba(20,184,166,0.18);
+    --skeleton: linear-gradient(90deg, #1a1a1a 25%, #232323 37%, #1a1a1a 63%);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh; padding: 16px 20px 96px;
+    line-height: 1.5;
+  }
+  .mono { font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; }
+  .num  { font-variant-numeric: tabular-nums; font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; }
+
+  /* sr-only for accessibility */
+  .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* ─── Header ─── */
+  .header {
+    background: linear-gradient(135deg, var(--bg-elev) 0%, var(--bg-card) 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: start;
+  }
+  .header h1 {
+    font-size: 22px; font-weight: 700;
+    letter-spacing: -0.02em;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  }
+  .header h1 .accent { color: var(--accent); }
+  .header h1 .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--success-dim); color: var(--success);
+    padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .header h1 .live-badge .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 1.5s infinite; }
+  .header h1 .live-badge.off { background: var(--danger-dim); color: var(--danger); }
+  .header h1 .live-badge.off .dot { background: var(--danger); animation: none; }
+  .header h1 .live-badge.err { background: var(--warning-dim); color: var(--warning); }
+  .header h1 .live-badge.err .dot { background: var(--warning); animation: pulse 0.8s infinite; }
+  .header p { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+
+  .endpoint-box {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+    max-width: 460px; min-width: 320px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .endpoint-row { display: flex; align-items: center; gap: 8px; }
+  .endpoint-row .method {
+    color: var(--success); font-weight: 700; font-family: "SF Mono", ui-monospace, monospace;
+    font-size: 11px; min-width: 36px;
+  }
+  .endpoint-row .url {
+    flex: 1; font-family: "SF Mono", ui-monospace, monospace; font-size: 11px;
+    color: var(--accent-2); word-break: break-all;
+  }
+  .endpoint-row button {
+    background: var(--bg-card); color: var(--text); border: 1px solid var(--border-strong);
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+    transition: all .15s; font-weight: 600;
+  }
+  .endpoint-row button:hover { border-color: var(--accent); color: var(--accent); }
+  .source-toggle {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .source-toggle .switch {
+    position: relative; width: 36px; height: 18px; cursor: pointer;
+    background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 999px;
+    transition: background .15s;
+  }
+  .source-toggle .switch::after {
+    content: ""; position: absolute; top: 1px; left: 1px;
+    width: 14px; height: 14px; background: var(--text-muted); border-radius: 50%;
+    transition: transform .15s, background .15s;
+  }
+  .source-toggle.on .switch { background: var(--accent-dim); border-color: var(--accent); }
+  .source-toggle.on .switch::after { transform: translateX(18px); background: var(--accent); }
+
+  /* ─── Filter bar (sticky) ─── */
+  .filter-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  }
+  .filter-bar .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .filter-bar .field.grow { flex: 1 1 160px; }
+  .filter-bar label {
+    font-size: 10px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+  }
+  .filter-bar input, .filter-bar select {
+    background: var(--bg-card); border: 1px solid var(--border-strong); color: var(--text);
+    padding: 8px 10px; border-radius: 6px; font-size: 13px;
+    font-family: "SF Mono", ui-monospace, monospace;
+    transition: border-color .15s;
+    width: 100%;
+  }
+  .filter-bar input:focus, .filter-bar select:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .filter-bar input::placeholder { color: var(--text-dim); }
+  .filter-bar button {
+    background: var(--accent); color: #062b27; border: none;
+    padding: 9px 14px; border-radius: 6px; font-weight: 700; cursor: pointer;
+    font-size: 12px; transition: all .15s; letter-spacing: 0.3px;
+  }
+  .filter-bar button:hover { background: var(--accent-2); }
+  .filter-bar button.secondary {
+    background: var(--bg-card); color: var(--text); border: 1px solid var(--border-strong);
+  }
+  .filter-bar button.secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ─── Stat cards ─── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative; overflow: hidden;
+    transition: transform .15s, border-color .15s;
+  }
+  .stat-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+  .stat-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent);
+  }
+  .stat-card.view-status::before  { background: var(--success); }
+  .stat-card.view-count::before   { background: var(--info); }
+  .stat-card.publish-count::before{ background: var(--warning); }
+  .stat-card.total-streams::before{ background: var(--accent); }
+  .stat-card.error::before { background: var(--danger); }
+
+  .stat-card .label {
+    font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 1.2px; font-weight: 700; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .stat-card .value {
+    font-size: 38px; font-weight: 800; line-height: 1;
+    font-family: "SF Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .stat-card .value.green  { color: var(--success); }
+  .stat-card .value.red    { color: var(--danger); }
+  .stat-card .value.blue   { color: var(--info); }
+  .stat-card .value.yellow { color: var(--warning); }
+  .stat-card .value.teal   { color: var(--accent); }
+  .stat-card .value.on  { animation: pulse-on 1.6s infinite; }
+  .stat-card .value.off { opacity: 0.7; }
+  @keyframes pulse-on { 0%,100%{ opacity:1 } 50%{ opacity:0.65 } }
+  .stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+  .stat-card .trend {
+    font-size: 11px; font-weight: 700; margin-top: 6px;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .stat-card .trend.up   { color: var(--success); }
+  .stat-card .trend.down { color: var(--danger); }
+  .stat-card .trend.same { color: var(--text-dim); }
+
+  /* Skeleton */
+  .skeleton {
+    background: var(--skeleton); background-size: 400% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 4px; color: transparent !important;
+  }
+  @keyframes shimmer { 0%{ background-position: 100% 50% } 100%{ background-position: 0 50% } }
+
+  /* ─── Streams section ─── */
+  .streams-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .streams-section h2 {
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    color: var(--text);
+  }
+  .streams-section h2 .count {
+    background: var(--accent-dim); color: var(--accent);
+    padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .streams-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 480px; overflow-y: auto;
+    padding-right: 6px;
+  }
+  .streams-list::-webkit-scrollbar { width: 8px; }
+  .streams-list::-webkit-scrollbar-track { background: var(--bg); border-radius: 4px; }
+  .streams-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  .streams-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  .stream-row {
+    display: grid;
+    grid-template-columns: 1.6fr 0.6fr 0.7fr 0.6fr 1.1fr 1.4fr;
+    gap: 12px; align-items: center;
+    background: var(--bg-elev); padding: 12px 14px;
+    border-radius: 8px; border-left: 3px solid var(--success);
+    cursor: pointer; transition: background .15s, transform .15s;
+  }
+  .stream-row:hover { background: #1f1f1f; transform: translateX(2px); }
+  .stream-row.offline { border-left-color: var(--danger); opacity: 0.6; }
+
+  .stream-row .name-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .stream-row .name-block .name {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 13px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .stream-row .name-block .name .acc { color: var(--accent); }
+  .stream-row .name-block .name .sep { color: var(--text-dim); }
+  .stream-row .name-block .name .copy-btn {
+    background: transparent; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 0 4px; font-size: 11px; transition: color .15s;
+  }
+  .stream-row .name-block .name .copy-btn:hover { color: var(--accent); }
+  .stream-row .name-block .stream-id {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .stream-row .status-pill {
+    padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    display: inline-flex; align-items: center; gap: 4px;
+    width: fit-content;
+  }
+  .stream-row .status-pill.on  { background: var(--success-dim); color: var(--success); }
+  .stream-row .status-pill.off { background: var(--danger-dim);  color: var(--danger); }
+  .stream-row .status-pill .dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+
+  .stream-row .vc-block {
+    display: flex; flex-direction: column; gap: 2px;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .stream-row .vc-block .vc-val {
+    font-size: 16px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .stream-row .vc-block .spark { display: block; height: 14px; }
+
+  .stream-row .pc-block {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .stream-row .pc-block .lbl { color: var(--text-dim); font-size: 10px; }
+
+  .stream-row .codec-block {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 11px;
+    color: var(--text-muted);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .stream-row .codec-block .video { color: var(--text); font-weight: 600; }
+  .stream-row .codec-block .audio { color: var(--text-muted); }
+
+  .stream-row .meta-block {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 11px;
+    color: var(--text-muted);
+    display: flex; flex-direction: column; gap: 2px;
+    text-align: right;
+  }
+  .stream-row .meta-block .bitrate { color: var(--accent-2); font-weight: 600; }
+  .stream-row .meta-block .started { color: var(--text-dim); }
+
+  .no-streams {
+    text-align: center; padding: 40px 20px;
+    color: var(--text-muted); font-size: 13px;
+  }
+
+  /* ─── Event log ─── */
+  .log-section {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  .log-section h2 {
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .log-section h2 .left { display: flex; align-items: center; gap: 8px; }
+  .log-section h2 .count-pill {
+    background: var(--bg-elev); color: var(--text-muted);
+    padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .log-section h2 .actions { display: flex; gap: 6px; }
+  .log-section h2 button {
+    background: var(--bg-elev); color: var(--text-muted);
+    border: 1px solid var(--border-strong);
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+    transition: all .15s; font-weight: 600;
+  }
+  .log-section h2 button:hover { color: var(--accent); border-color: var(--accent); }
+
+  .log-box {
+    background: #000; border-radius: 8px; padding: 10px 12px;
+    height: 200px; overflow-y: auto;
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 12px; line-height: 1.6;
+    transition: height .2s;
+  }
+  .log-box::-webkit-scrollbar { width: 8px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  .log-box.collapsed { height: 36px; overflow: hidden; }
+
+  .log-box .line {
+    display: flex; gap: 8px; align-items: flex-start;
+    color: var(--text-muted); padding: 1px 0;
+  }
+  .log-box .line .time { color: var(--text-dim); flex-shrink: 0; }
+  .log-box .line .icon { flex-shrink: 0; width: 14px; text-align: center; }
+  .log-box .line .msg { word-break: break-word; min-width: 0; }
+  .log-box .line.info  .msg { color: var(--info); }
+  .log-box .line.ok    .msg { color: var(--success); }
+  .log-box .line.warn  .msg { color: var(--warning); }
+  .log-box .line.err   .msg { color: var(--danger); }
+
+  /* ─── Modal ─── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    border-radius: 12px; padding: 18px 20px;
+    max-width: 720px; width: 100%; max-height: 80vh;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .modal header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 14px; font-weight: 700;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .modal header .title { color: var(--accent); font-family: "SF Mono", ui-monospace, monospace; }
+  .modal header button {
+    background: transparent; border: none; color: var(--text-muted);
+    font-size: 22px; cursor: pointer; padding: 0 6px; line-height: 1;
+  }
+  .modal header button:hover { color: var(--danger); }
+  .modal pre {
+    background: #000; padding: 12px; border-radius: 8px;
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 11px;
+    overflow: auto; color: var(--text); max-height: 60vh;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  /* ─── Toasts ─── */
+  .toast-container {
+    position: fixed; top: 16px; right: 16px; z-index: 300;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none; max-width: 320px;
+  }
+  .toast {
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 12px; color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    animation: toast-in .3s ease;
+    pointer-events: auto;
+  }
+  .toast.success { border-left-color: var(--success); }
+  .toast.warn    { border-left-color: var(--warning); }
+  .toast.error   { border-left-color: var(--danger); }
+  .toast.info    { border-left-color: var(--info); }
+  .toast.fadeout { animation: toast-out .3s ease forwards; }
+  @keyframes toast-in  { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes toast-out { to   { transform: translateX(120%); opacity: 0; } }
+
+  /* ─── Sticky footer ─── */
+  .footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg-elev); border-top: 1px solid var(--border);
+    padding: 10px 20px; z-index: 40;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    font-size: 11px; color: var(--text-muted);
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .footer .src-indicator {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 10px; border-radius: 999px;
+    background: var(--accent-dim); color: var(--accent);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .footer .src-indicator.mock    { background: var(--warning-dim); color: var(--warning); }
+  .footer .src-indicator.proxy   { background: var(--accent-dim);   color: var(--accent); }
+  .footer .src-indicator.error   { background: var(--danger-dim);   color: var(--danger); }
+  .footer .footer-spacer { flex: 1; }
+  .footer .paused-indicator {
+    display: none; color: var(--warning); font-weight: 700;
+    background: var(--warning-dim); padding: 2px 10px; border-radius: 999px;
+    animation: pulse 1.2s infinite;
+  }
+  .footer .paused-indicator.show { display: inline-block; }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 900px) {
+    .stream-row {
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stream-row .meta-block { text-align: left; }
+  }
+  @media (max-width: 640px) {
+    body { padding: 10px 10px 100px; }
+    .header { grid-template-columns: 1fr; }
+    .endpoint-box { max-width: 100%; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .stat-card .value { font-size: 30px; }
+    .filter-bar { flex-direction: column; align-items: stretch; }
+    .filter-bar .field { width: 100%; }
+    .filter-bar button { width: 100%; }
+    .stream-row { grid-template-columns: 1fr; }
+    .footer { font-size: 10px; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div>
+    <h1>F5HLIVE — <span class="accent">WebRTC Stats Monitor</span>
+      <span class="live-badge off" id="liveBadge" aria-live="polite">
+        <span class="dot"></span><span id="liveBadgeText">WAITING</span>
+      </span>
+    </h1>
+    <p>Mini painel para teste de ViewCount / PublishCount / ViewStatus (WebRTC)</p>
+  </div>
+  <div class="endpoint-box" aria-label="Endpoint URL display">
+    <div class="endpoint-row">
+      <span class="method">GET</span>
+      <span class="url" id="endpointUrl">/api/webrtc/stats</span>
+      <button id="copyUrlBtn" aria-label="Copy URL to clipboard" title="Copy URL">Copy</button>
+    </div>
+    <label class="source-toggle" id="sourceToggle" title="Toggle between Next.js proxy and mock-direct (port 3010)">
+      <span class="switch" role="switch" tabindex="0" aria-checked="false" aria-label="Toggle data source"></span>
+      <span id="sourceToggleLabel">Use Next.js proxy</span>
+    </label>
+  </div>
+</header>
+
+<section class="filter-bar" aria-label="Filters and polling controls">
+  <div class="field grow">
+    <label for="accountId">Account ID</label>
+    <input type="text" id="accountId" placeholder="h9VP9W" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="field grow">
+    <label for="streamName">Stream Name</label>
+    <input type="text" id="streamName" placeholder="test123" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="field grow">
+    <label for="token">Token (optional)</label>
+    <input type="text" id="token" placeholder="optional JWT token" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="field">
+    <label for="interval">Poll interval</label>
+    <select id="interval">
+      <option value="2">2s</option>
+      <option value="3" selected>3s</option>
+      <option value="5">5s</option>
+      <option value="10">10s</option>
+      <option value="manual">Manual</option>
+    </select>
+  </div>
+  <button id="applyBtn" type="button">Apply Filter</button>
+  <button id="clearBtn" type="button" class="secondary">Clear</button>
+  <button id="pauseBtn" type="button" class="secondary">Pause</button>
+  <button id="refreshBtn" type="button" class="secondary" hidden>Refresh now</button>
+</section>
+
+<section class="stats-grid" aria-label="Key metrics">
+  <div class="stat-card view-status" id="card-viewStatus">
+    <div class="label">ViewStatus</div>
+    <div class="value skeleton" id="viewStatus">—</div>
+    <div class="sub" id="viewStatusSub">awaiting first fetch…</div>
+  </div>
+  <div class="stat-card view-count" id="card-viewCount">
+    <div class="label">ViewCount (total viewers)</div>
+    <div class="value skeleton blue" id="viewCount">0</div>
+    <div class="sub" id="viewCountSub">viewers connected</div>
+    <div class="trend same" id="viewCountTrend">→</div>
+  </div>
+  <div class="stat-card publish-count" id="card-publishCount">
+    <div class="label">PublishCount (active lives)</div>
+    <div class="value skeleton yellow" id="publishCount">0</div>
+    <div class="sub" id="publishCountSub">lives online</div>
+    <div class="trend same" id="publishCountTrend">→</div>
+  </div>
+  <div class="stat-card total-streams" id="card-totalStreams">
+    <div class="label">Total Streams (filtered)</div>
+    <div class="value skeleton teal" id="totalStreams">0</div>
+    <div class="sub" id="totalStreamsSub">streams in response</div>
+  </div>
+</section>
+
+<section class="streams-section" aria-label="Stream list">
+  <h2>WebRTC Streams <span class="count" id="streamCount">0</span></h2>
+  <div class="streams-list" id="streamsList" role="list">
+    <div class="no-streams">Awaiting first fetch…</div>
+  </div>
+</section>
+
+<section class="log-section" aria-label="Event log">
+  <h2>
+    <span class="left">Event Log <span class="count-pill" id="logCount">0</span></span>
+    <span class="actions">
+      <button id="toggleLogBtn" type="button" aria-label="Collapse or expand log">Collapse</button>
+      <button id="clearLogBtn" type="button" aria-label="Clear all log entries">Clear log</button>
+    </span>
+  </h2>
+  <div class="log-box" id="logBox" role="log" aria-live="polite" aria-label="Event log entries"></div>
+</section>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <header>
+      <span class="title" id="modalTitle">Stream detail</span>
+      <button id="modalCloseBtn" type="button" aria-label="Close detail modal">×</button>
+    </header>
+    <pre id="modalContent" class="mono"></pre>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="toast-container" id="toastContainer" aria-live="assertive" aria-label="Toast notifications"></div>
+
+<!-- Sticky footer -->
+<footer class="footer" aria-label="Status footer">
+  <span class="src-indicator" id="srcIndicator">—</span>
+  <span>Last fetch: <span id="lastFetch">—</span></span>
+  <span id="countdownWrap">Next refresh: <span id="countdown">3s</span></span>
+  <span class="paused-indicator" id="pausedIndicator">PAUSED</span>
+  <span class="footer-spacer"></span>
+  <span>F5HLIVE · WebRTC Stats Monitor · <span class="mono">/api/webrtc/stats</span></span>
+</footer>
+
+<script>
+"use strict";
+
+/* ────────────────────────────────────────────────────────────
+   State
+   ──────────────────────────────────────────────────────────── */
+var state = {
+  polling: true,
+  timer: null,
+  countdownTimer: null,
+  interval: 3000,
+  nextFetchAt: 0,
+  prevViewCount: null,
+  prevPublishCount: null,
+  prevTotalStreams: null,
+  prevStatusByStream: {},        // streamKey → "on"/"off"
+  prevStreamKeys: new Set(),     // detect new/ended streams
+  sparkData: {},                 // streamKey → number[] (last 12 viewCount)
+  retryCount: 0,
+  lastFetchTs: null,
+  firstFetchDone: false,
+  useMockDirect: false,          // toggled via UI
+  fetchInFlight: null            // AbortController
+};
+
+var MAX_LOG = 200;
+var $ = function (id) { return document.getElementById(id); };
+
+/* ────────────────────────────────────────────────────────────
+   Escape HTML (defensive — used when interpolating unknown data)
+   ──────────────────────────────────────────────────────────── */
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/* ────────────────────────────────────────────────────────────
+   Logger (FIFO, max MAX_LOG entries, auto-scroll)
+   ──────────────────────────────────────────────────────────── */
+function log(msg, type) {
+  type = type || "info";
+  var box = $("logBox");
+  var time = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  var icons = { info: "ℹ", ok: "✓", warn: "⚠", err: "✗" };
+  var icon = icons[type] || icons.info;
+
+  var line = document.createElement("div");
+  line.className = "line " + type;
+  // Build with textContent for the message portion to avoid XSS
+  var timeEl = document.createElement("span");
+  timeEl.className = "time";
+  timeEl.textContent = "[" + time + "]";
+  var iconEl = document.createElement("span");
+  iconEl.className = "icon";
+  iconEl.textContent = icon;
+  var msgEl = document.createElement("span");
+  msgEl.className = "msg";
+  msgEl.textContent = msg;
+  line.appendChild(timeEl);
+  line.appendChild(iconEl);
+  line.appendChild(msgEl);
+  box.appendChild(line);
+
+  // FIFO
+  while (box.children.length > MAX_LOG) box.removeChild(box.firstChild);
+  // Auto-scroll to bottom
+  box.scrollTop = box.scrollHeight;
+  // Update count
+  $("logCount").textContent = box.children.length;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Toasts
+   ──────────────────────────────────────────────────────────── */
+function toast(msg, type, duration) {
+  type = type || "info";
+  duration = duration || 3500;
+  var c = $("toastContainer");
+  var el = document.createElement("div");
+  el.className = "toast " + type;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(function () {
+    el.classList.add("fadeout");
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+  }, duration);
+}
+
+/* ────────────────────────────────────────────────────────────
+   URL building
+   ──────────────────────────────────────────────────────────── */
+function isLocalhost() {
+  var h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "::1";
+}
+
+function getBasePath() {
+  // Server de stream direto (não relativo ao site)
+  const serverHost = 'director-ca.f5hlive.com.br';
+  return `https://${serverHost}/api/webrtc`;
+}
+
+function buildUrl() {
+  var base = getBasePath();
+  var acc = $("accountId").value.trim();
+  var stream = $("streamName").value.trim();
+  var token = $("token").value.trim();
+  var qs = [];
+  if (acc)    qs.push("accountId=" + encodeURIComponent(acc));
+  if (stream) qs.push("streamName=" + encodeURIComponent(stream));
+  if (token)  qs.push("token=" + encodeURIComponent(token));
+  var suffix = qs.length ? "?" + qs.join("&") : "";
+  return base + "/stats" + suffix;
+}
+
+function updateEndpointDisplay() {
+  var url = buildUrl();
+  $("endpointUrl").textContent = url;
+  var lbl = $("sourceToggleLabel");
+  var toggle = $("sourceToggle");
+  var sw = toggle.querySelector(".switch");
+  if (state.useMockDirect) {
+    lbl.textContent = "Use mock directly (port 3010) — ON";
+    toggle.classList.add("on");
+    sw.setAttribute("aria-checked", "true");
+  } else {
+    lbl.textContent = "Use Next.js proxy";
+    toggle.classList.remove("on");
+    sw.setAttribute("aria-checked", "false");
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Relative time formatter ("5m ago", "1h 12m ago")
+   ──────────────────────────────────────────────────────────── */
+function relativeTime(iso) {
+  if (!iso) return "—";
+  var then;
+  try { then = new Date(iso).getTime(); } catch (e) { return "—"; }
+  if (isNaN(then)) return "—";
+  var diff = Date.now() - then;
+  if (diff < 0) diff = 0;
+  var s = Math.floor(diff / 1000);
+  if (s < 60) return s + "s ago";
+  var m = Math.floor(s / 60);
+  var remS = s % 60;
+  if (m < 60) return remS ? m + "m " + remS + "s ago" : m + "m ago";
+  var h = Math.floor(m / 60);
+  var remM = m % 60;
+  if (h < 24) return remM ? h + "h " + remM + "m ago" : h + "h ago";
+  var d = Math.floor(h / 24);
+  return d + "d ago";
+}
+
+/* ────────────────────────────────────────────────────────────
+   Format bitrate: "2.5 Mbps", "850 kbps"
+   ──────────────────────────────────────────────────────────── */
+function formatBitrate(bps) {
+  if (bps === null || bps === undefined || isNaN(bps)) return "—";
+  if (bps >= 1000000) return (bps / 1000000).toFixed(1) + " Mbps";
+  if (bps >= 1000) return Math.round(bps / 1000) + " kbps";
+  return bps + " bps";
+}
+
+/* ────────────────────────────────────────────────────────────
+   Number count-up animation
+   ──────────────────────────────────────────────────────────── */
+function animateNumber(el, from, to, duration) {
+  if (from === to) { el.textContent = to; return; }
+  duration = duration || 400;
+  var start = performance.now();
+  function step(now) {
+    var t = Math.min(1, (now - start) / duration);
+    // ease-out
+    var eased = 1 - Math.pow(1 - t, 3);
+    var val = Math.round(from + (to - from) * eased);
+    el.textContent = val;
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = to;
+  }
+  requestAnimationFrame(step);
+}
+
+/* ────────────────────────────────────────────────────────────
+   Mini sparkline (SVG polyline)
+   ──────────────────────────────────────────────────────────── */
+function renderSparkline(data) {
+  if (!data || data.length < 2) return "";
+  var w = 50, h = 14;
+  var min = Math.min.apply(null, data);
+  var max = Math.max.apply(null, data);
+  var range = (max - min) || 1;
+  var pts = data.map(function (v, i) {
+    var x = (i / (data.length - 1)) * w;
+    var y = h - ((v - min) / range) * (h - 2) - 1;
+    return x.toFixed(1) + "," + y.toFixed(1);
+  }).join(" ");
+  var color = (data[data.length - 1] >= data[0]) ? "#10b981" : "#ef4444";
+  return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h +
+    '" preserveAspectRatio="none" aria-hidden="true">' +
+    '<polyline points="' + pts + '" fill="none" stroke="' + color +
+    '" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+
+/* ────────────────────────────────────────────────────────────
+   Fetch with timeout (AbortController, 5s)
+   ──────────────────────────────────────────────────────────── */
+function fetchWithTimeout(url, ms) {
+  ms = ms || 5000;
+  var ctrl = new AbortController();
+  var to = setTimeout(function () { ctrl.abort(); }, ms);
+  state.fetchInFlight = ctrl;
+  return fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal: ctrl.signal,
+    cache: "no-store"
+  }).then(function (r) {
+    clearTimeout(to);
+    if (!r.ok) throw new Error("HTTP " + r.status + " " + r.statusText);
+    return r.text();
+  }).then(function (txt) {
+    // Defensive JSON parsing
+    try { return JSON.parse(txt); }
+    catch (e) { throw new Error("Invalid JSON: " + txt.slice(0, 120)); }
+  }).catch(function (e) {
+    clearTimeout(to);
+    if (e.name === "AbortError") throw new Error("Timeout after " + ms + "ms");
+    throw e;
+  });
+}
+
+/* ────────────────────────────────────────────────────────────
+   Main fetch + update
+   ──────────────────────────────────────────────────────────── */
+function fetchStats() {
+  if (state.fetchInFlight) {
+    try { state.fetchInFlight.abort(); } catch (e) {}
+  }
+  var url = buildUrl();
+  updateEndpointDisplay();
+  return fetchWithTimeout(url, 5000).then(function (d) {
+    state.retryCount = 0;
+    state.lastFetchTs = Date.now();
+    state.firstFetchDone = true;
+    updateUI(d);
+    scheduleNextFetch();
+  }).catch(function (e) {
+    handleFetchError(e);
+  });
+}
+
+function handleFetchError(e) {
+  state.retryCount++;
+  var msg = e && e.message ? e.message : String(e);
+  log("Fetch error: " + msg + " (retry #" + state.retryCount + ")", "err");
+
+  // Cards → error state (only after first fetch; otherwise keep skeleton)
+  if (state.firstFetchDone) {
+    setCardsError(msg);
+  }
+  // Footer
+  setSrcIndicator("error", "ERROR");
+  $("lastFetch").textContent = "failed";
+
+  // Live badge → err
+  var badge = $("liveBadge");
+  badge.className = "live-badge err";
+  $("liveBadgeText").textContent = "ERROR";
+
+  // Backoff retry (2s, 4s, 8s, max 10s)
+  var backoff = Math.min(10000, 2000 * Math.pow(2, state.retryCount - 1));
+  log("Retrying in " + (backoff / 1000) + "s…", "warn");
+  $("countdown").textContent = "retry in " + (backoff / 1000) + "s";
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  state.timer = setTimeout(function () {
+    if (state.polling) fetchStats();
+  }, backoff);
+}
+
+function setCardsError(msg) {
+  var vs = $("viewStatus");
+  vs.classList.remove("skeleton");
+  vs.textContent = "ERR";
+  vs.className = "value red off";
+  $("viewStatusSub").textContent = msg || "Connection error";
+
+  $("viewCount").classList.remove("skeleton");
+  $("viewCount").className = "value red";
+  $("publishCount").classList.remove("skeleton");
+  $("publishCount").className = "value red";
+  $("totalStreams").classList.remove("skeleton");
+  $("totalStreams").className = "value red";
+
+  ["card-viewStatus", "card-viewCount", "card-publishCount", "card-totalStreams"].forEach(function (id) {
+    $(id).classList.add("error");
+  });
+}
+
+/* ────────────────────────────────────────────────────────────
+   Update UI from stats response
+   ──────────────────────────────────────────────────────────── */
+function updateUI(d) {
+  // Source indicator (mock/proxy/webrtc-server)
+  var src = d.source || (state.useMockDirect ? "mock" : "proxy");
+  setSrcIndicator(src, src.toUpperCase());
+
+  // Remove error state from cards
+  ["card-viewStatus", "card-viewCount", "card-publishCount", "card-totalStreams"].forEach(function (id) {
+    $(id).classList.remove("error");
+  });
+
+  /* ── ViewStatus ── */
+  var vs = d.viewStatus || "off";
+  var vsEl = $("viewStatus");
+  vsEl.classList.remove("skeleton");
+  vsEl.textContent = vs === "on" ? "●ON" : "●OFF";
+  vsEl.className = "value " + (vs === "on" ? "green on" : "red off");
+  var ts = d.timestamp || new Date().toISOString();
+  $("viewStatusSub").textContent = "status @ " + new Date(ts).toLocaleTimeString("pt-BR", { hour12: false });
+
+  /* ── ViewCount ── */
+  var vc = (typeof d.totalViewers === "number") ? d.totalViewers :
+           (Array.isArray(d.streams) ? d.streams.reduce(function (a, s) { return a + (s.viewCount || 0); }, 0) : 0);
+  var vcEl = $("viewCount");
+  vcEl.classList.remove("skeleton");
+  vcEl.className = "value blue";
+  var prevVc = state.prevViewCount;
+  if (prevVc === null) {
+    vcEl.textContent = vc;
+  } else {
+    animateNumber(vcEl, prevVc, vc, 400);
+  }
+  // Trend arrow + delta
+  var trendVc = $("viewCountTrend");
+  if (prevVc !== null) {
+    var diffVc = vc - prevVc;
+    if (diffVc > 0) {
+      trendVc.textContent = "↑ +" + diffVc;
+      trendVc.className = "trend up";
+    } else if (diffVc < 0) {
+      trendVc.textContent = "↓ " + diffVc;
+      trendVc.className = "trend down";
+    } else {
+      trendVc.textContent = "→ 0";
+      trendVc.className = "trend same";
+    }
+    if (Math.abs(diffVc) > 2) {
+      log("ViewCount Δ " + (diffVc > 0 ? "+" : "") + diffVc + " (now " + vc + ")", diffVc > 0 ? "ok" : "warn");
+    }
+  }
+  state.prevViewCount = vc;
+  $("viewCountSub").textContent = "viewers across " + (d.streams ? d.streams.length : 0) + " stream(s)";
+
+  /* ── PublishCount ── */
+  var pc = (typeof d.publishCount === "number") ? d.publishCount : 0;
+  var pcEl = $("publishCount");
+  pcEl.classList.remove("skeleton");
+  pcEl.className = "value yellow";
+  var prevPc = state.prevPublishCount;
+  if (prevPc === null) {
+    pcEl.textContent = pc;
+  } else {
+    animateNumber(pcEl, prevPc, pc, 400);
+  }
+  var trendPc = $("publishCountTrend");
+  if (prevPc !== null) {
+    var diffPc = pc - prevPc;
+    if (diffPc > 0) {
+      trendPc.textContent = "↑ +" + diffPc + " live";
+      trendPc.className = "trend up";
+      toast("⚡ New live! PublishCount: " + pc, "success");
+      log("New live detected. PublishCount: " + prevPc + " → " + pc, "ok");
+    } else if (diffPc < 0) {
+      trendPc.textContent = "↓ " + diffPc + " live";
+      trendPc.className = "trend down";
+      toast("⚠ Live ended. PublishCount: " + pc, "warn");
+      log("Live ended. PublishCount: " + prevPc + " → " + pc, "warn");
+    } else {
+      trendPc.textContent = "→ stable";
+      trendPc.className = "trend same";
+    }
+  }
+  state.prevPublishCount = pc;
+  $("publishCountSub").textContent = pc + " active publisher(s)";
+
+  /* ── Total Streams ── */
+  var streams = Array.isArray(d.streams) ? d.streams : [];
+  var tsEl = $("totalStreams");
+  tsEl.classList.remove("skeleton");
+  tsEl.className = "value teal";
+  var prevTs = state.prevTotalStreams;
+  if (prevTs === null) {
+    tsEl.textContent = streams.length;
+  } else {
+    animateNumber(tsEl, prevTs, streams.length, 400);
+  }
+  state.prevTotalStreams = streams.length;
+  $("totalStreamsSub").textContent = "matching current filter";
+  $("streamCount").textContent = streams.length;
+
+  /* ── Live badge ── */
+  var badge = $("liveBadge");
+  var badgeTxt = $("liveBadgeText");
+  if (pc > 0 || vs === "on") {
+    badge.className = "live-badge";
+    badgeTxt.textContent = "LIVE";
+  } else {
+    badge.className = "live-badge off";
+    badgeTxt.textContent = "OFFLINE";
+  }
+
+  /* ── Streams list ── */
+  renderStreamList(streams);
+
+  /* ── Footer timestamps ── */
+  var now = new Date();
+  $("lastFetch").textContent = now.toLocaleTimeString("pt-BR", { hour12: false });
+
+  log("Fetched: publishCount=" + pc + " totalViewers=" + vc + " viewStatus=" + vs +
+      " streams=" + streams.length + " source=" + src, "info");
+}
+
+/* ────────────────────────────────────────────────────────────
+   Stream list rendering
+   ──────────────────────────────────────────────────────────── */
+function renderStreamList(streams) {
+  var list = $("streamsList");
+  if (!streams.length) {
+    list.innerHTML = '<div class="no-streams">No streams match the current filter.</div>';
+    state.prevStreamKeys = new Set();
+    state.prevStatusByStream = {};
+    return;
+  }
+
+  var currentKeys = new Set();
+  var frag = document.createDocumentFragment();
+
+  streams.forEach(function (s) {
+    var key = (s.accountId || "?") + "/" + (s.streamName || "?");
+    currentKeys.add(key);
+
+    // Update sparkline data
+    if (!state.sparkData[key]) state.sparkData[key] = [];
+    var arr = state.sparkData[key];
+    arr.push(s.viewCount || 0);
+    if (arr.length > 12) arr.shift();
+
+    // Detect new streams
+    if (!state.prevStreamKeys.has(key)) {
+      if (state.firstFetchDone && state.prevStreamKeys.size > 0) {
+        log("New stream detected: " + key, "ok");
+      }
+    }
+
+    // Detect status changes per stream
+    var prevStatus = state.prevStatusByStream[key];
+    var curStatus = s.viewStatus || (s.isLive ? "on" : "off");
+    if (prevStatus && prevStatus !== curStatus) {
+      log("Stream " + key + " status: " + prevStatus + " → " + curStatus,
+          curStatus === "on" ? "ok" : "warn");
+    }
+    state.prevStatusByStream[key] = curStatus;
+
+    var row = document.createElement("div");
+    row.className = "stream-row " + (curStatus === "on" ? "" : "offline");
+    row.setAttribute("role", "listitem");
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("aria-label", "Stream " + key + ", status " + curStatus);
+    row.dataset.streamKey = key;
+
+    // Click → open modal
+    row.addEventListener("click", function () { openModal(s); });
+    row.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(s); }
+    });
+
+    // Build inner HTML (escaped)
+    var videoCodec = esc(s.videoCodec || "?");
+    var videoRes = esc((s.videoWidth || "?") + "×" + (s.videoHeight || "?"));
+    var audioCodec = esc(s.audioCodec || "—");
+    var bitrate = esc(formatBitrate(s.bitrate));
+    var startedRel = esc(relativeTime(s.startedAt));
+    var spark = renderSparkline(state.sparkData[key]);
+    var vcNum = s.viewCount || 0;
+    var pcNum = s.publisherCount || 0;
+    var streamViewId = esc(s.streamViewId || "—");
+
+    row.innerHTML =
+      '<div class="name-block">' +
+        '<div class="name">' +
+          '<span class="acc">' + esc(s.accountId || "?") + '</span>' +
+          '<span class="sep">/</span>' +
+          '<span>' + esc(s.streamName || "?") + '</span>' +
+          '<button class="copy-btn" data-copy="' + esc(s.accountId || "") + '" title="Copy accountId" aria-label="Copy accountId">⧉</button>' +
+          '<button class="copy-btn" data-copy="' + esc(s.streamName || "") + '" title="Copy streamName" aria-label="Copy streamName">⧉</button>' +
+        '</div>' +
+        '<div class="stream-id">streamViewId: ' + streamViewId + '</div>' +
+      '</div>' +
+      '<div><span class="status-pill ' + (curStatus === "on" ? "on" : "off") + '">' +
+        '<span class="dot"></span>' + curStatus.toUpperCase() +
+      '</span></div>' +
+      '<div class="vc-block">' +
+        '<div class="vc-val">👁 ' + vcNum + '</div>' +
+        spark +
+      '</div>' +
+      '<div class="pc-block"><span class="lbl">pub:</span> ' + pcNum + '</div>' +
+      '<div class="codec-block">' +
+        '<div class="video">' + videoCodec + ' ' + videoRes + '</div>' +
+        '<div class="audio">audio: ' + audioCodec + '</div>' +
+      '</div>' +
+      '<div class="meta-block">' +
+        '<div class="bitrate">' + bitrate + '</div>' +
+        '<div class="started">started ' + startedRel + '</div>' +
+      '</div>';
+
+    // Wire up copy buttons (avoid inline onclick for CSP-friendliness)
+    row.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var val = btn.getAttribute("data-copy");
+        copyToClipboard(val);
+        toast("Copied: " + val, "info", 1500);
+      });
+    });
+
+    frag.appendChild(row);
+  });
+
+  // Detect ended streams
+  state.prevStreamKeys.forEach(function (k) {
+    if (!currentKeys.has(k)) {
+      log("Stream ended: " + k, "warn");
+    }
+  });
+  state.prevStreamKeys = currentKeys;
+
+  list.innerHTML = "";
+  list.appendChild(frag);
+}
+
+/* ────────────────────────────────────────────────────────────
+   Modal
+   ──────────────────────────────────────────────────────────── */
+function openModal(stream) {
+  $("modalTitle").textContent = (stream.accountId || "?") + "/" + (stream.streamName || "?");
+  $("modalContent").textContent = JSON.stringify(stream, null, 2);
+  $("modalOverlay").classList.add("open");
+}
+function closeModal() { $("modalOverlay").classList.remove("open"); }
+
+/* ────────────────────────────────────────────────────────────
+   Clipboard helper
+   ──────────────────────────────────────────────────────────── */
+function copyToClipboard(text) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text);
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  } catch (e) {}
+}
+
+/* ────────────────────────────────────────────────────────────
+   Source indicator (footer)
+   ──────────────────────────────────────────────────────────── */
+function setSrcIndicator(type, label) {
+  var el = $("srcIndicator");
+  el.className = "src-indicator";
+  if (type === "mock")  el.classList.add("mock");
+  if (type === "proxy") el.classList.add("proxy");
+  if (type === "error") el.classList.add("error");
+  el.textContent = label || type;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Polling & countdown
+   ──────────────────────────────────────────────────────────── */
+function startPolling() {
+  state.polling = true;
+  $("pauseBtn").textContent = "Pause";
+  $("pausedIndicator").classList.remove("show");
+  log("Polling resumed", "ok");
+  scheduleNextFetch(true);
+}
+
+function stopPolling() {
+  state.polling = false;
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  if (state.countdownTimer) { clearInterval(state.countdownTimer); state.countdownTimer = null; }
+  $("pauseBtn").textContent = "Resume";
+  $("pausedIndicator").classList.add("show");
+  $("countdown").textContent = "paused";
+  log("Polling paused", "warn");
+}
+
+function scheduleNextFetch(immediate) {
+  if (!state.polling) return;
+  var sel = $("interval").value;
+  if (sel === "manual") {
+    $("refreshBtn").hidden = false;
+    $("countdown").textContent = "manual";
+    $("countdownWrap").style.display = "none";
+    return;
+  }
+  $("refreshBtn").hidden = true;
+  $("countdownWrap").style.display = "";
+
+  var interval = parseInt(sel, 10) * 1000;
+  state.interval = interval;
+  state.nextFetchAt = Date.now() + interval;
+
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  state.timer = setTimeout(function () {
+    if (state.polling) fetchStats();
+  }, interval);
+
+  // Countdown ticker
+  if (state.countdownTimer) clearInterval(state.countdownTimer);
+  state.countdownTimer = setInterval(function () {
+    if (!state.polling) return;
+    var remaining = Math.max(0, Math.ceil((state.nextFetchAt - Date.now()) / 1000));
+    $("countdown").textContent = remaining + "s";
+  }, 250);
+}
+
+/* ────────────────────────────────────────────────────────────
+   Filter reset (clears previous-state tracking so trends reset)
+   ──────────────────────────────────────────────────────────── */
+function resetTrendBaselines() {
+  state.prevViewCount = null;
+  state.prevPublishCount = null;
+  state.prevTotalStreams = null;
+  state.prevStatusByStream = {};
+  state.prevStreamKeys = new Set();
+  state.sparkData = {};
+}
+
+/* ────────────────────────────────────────────────────────────
+   Event listeners
+   ──────────────────────────────────────────────────────────── */
+function wireEvents() {
+  $("applyBtn").addEventListener("click", function () {
+    resetTrendBaselines();
+    log("Filter applied: accountId=" + ($("accountId").value || "(empty)") +
+        " streamName=" + ($("streamName").value || "(empty)") +
+        " token=" + ($("token").value ? "(set)" : "(empty)"), "info");
+    fetchStats();
+  });
+
+  $("clearBtn").addEventListener("click", function () {
+    $("accountId").value = "";
+    $("streamName").value = "";
+    $("token").value = "";
+    resetTrendBaselines();
+    log("Filters cleared", "info");
+    fetchStats();
+  });
+
+  $("pauseBtn").addEventListener("click", function () {
+    if (state.polling) stopPolling(); else startPolling();
+  });
+
+  $("refreshBtn").addEventListener("click", function () {
+    log("Manual refresh triggered", "info");
+    fetchStats();
+  });
+
+  $("interval").addEventListener("change", function () {
+    var sel = $("interval").value;
+    if (sel === "manual") {
+      log("Switched to manual mode", "info");
+      if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+      if (state.countdownTimer) { clearInterval(state.countdownTimer); state.countdownTimer = null; }
+      $("refreshBtn").hidden = false;
+      $("countdown").textContent = "manual";
+      $("countdownWrap").style.display = "none";
+    } else {
+      $("refreshBtn").hidden = true;
+      $("countdownWrap").style.display = "";
+      log("Interval changed to " + sel + "s", "info");
+      if (state.polling) scheduleNextFetch();
+    }
+  });
+
+  // Enter key in any filter input → apply
+  ["accountId", "streamName", "token"].forEach(function (id) {
+    $(id).addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); $("applyBtn").click(); }
+    });
+  });
+
+  // Copy URL
+  $("copyUrlBtn").addEventListener("click", function () {
+    var url = $("endpointUrl").textContent;
+    // Make absolute for convenience
+    var abs = url;
+    if (url.startsWith("/")) abs = window.location.origin + url;
+    copyToClipboard(abs);
+    toast("Copied URL: " + abs, "info", 2000);
+  });
+
+  // Source toggle (switch)
+  var toggle = $("sourceToggle");
+  var sw = toggle.querySelector(".switch");
+  function toggleSource() {
+    if (!isLocalhost()) {
+      toast("Mock-direct toggle is only available on localhost", "warn");
+      return;
+    }
+    state.useMockDirect = !state.useMockDirect;
+    try { localStorage.setItem("webrtc-stats:useMockDirect", state.useMockDirect ? "1" : "0"); } catch (e) {}
+    updateEndpointDisplay();
+    log("Data source: " + (state.useMockDirect ? "mock (port 3010)" : "Next.js proxy"), "info");
+    resetTrendBaselines();
+    fetchStats();
+  }
+  sw.addEventListener("click", toggleSource);
+  sw.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSource(); }
+  });
+
+  // Modal close
+  $("modalCloseBtn").addEventListener("click", closeModal);
+  $("modalOverlay").addEventListener("click", function (e) {
+    if (e.target === $("modalOverlay")) closeModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeModal();
+  });
+
+  // Log controls
+  $("clearLogBtn").addEventListener("click", function () {
+    $("logBox").innerHTML = "";
+    $("logCount").textContent = "0";
+    log("Log cleared", "info");
+  });
+  $("toggleLogBtn").addEventListener("click", function () {
+    var box = $("logBox");
+    var btn = $("toggleLogBtn");
+    box.classList.toggle("collapsed");
+    btn.textContent = box.classList.contains("collapsed") ? "Expand" : "Collapse";
+  });
+
+  // Page visibility — pause polling when tab hidden to save resources
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      if (state.polling && state.timer) {
+        clearTimeout(state.timer); state.timer = null;
+        if (state.countdownTimer) { clearInterval(state.countdownTimer); state.countdownTimer = null; }
+        log("Tab hidden — pausing timer (will resume on focus)", "info");
+      }
+    } else {
+      if (state.polling && !state.timer && $("interval").value !== "manual") {
+        log("Tab visible — resuming", "info");
+        fetchStats();
+      }
+    }
+  });
+}
+
+/* ────────────────────────────────────────────────────────────
+   Auto-detect localhost + restore localStorage prefs
+   ──────────────────────────────────────────────────────────── */
+function autoDetect() {
+  var loc = window.location;
+  var saved = null;
+  try { saved = localStorage.getItem("webrtc-stats:useMockDirect"); } catch (e) {}
+
+  if (loc.protocol === "file:") {
+    // file:// → must use mock-direct (no Next.js server)
+    state.useMockDirect = true;
+    log("Auto-detect: file:// → mock-direct (port 3010)", "info");
+  } else if (isLocalhost()) {
+    // localhost — default to proxy, allow toggle to mock-direct
+    if (saved === "1") state.useMockDirect = true;
+    log("Auto-detect: localhost → " + (state.useMockDirect ? "mock-direct (port 3010)" : "Next.js proxy") +
+        " (toggle available)", "info");
+  } else {
+    // production — only proxy is reachable
+    state.useMockDirect = false;
+    log("Auto-detect: production → Next.js proxy (mock-direct disabled)", "info");
+  }
+  updateEndpointDisplay();
+}
+
+/* ────────────────────────────────────────────────────────────
+   Init
+   ──────────────────────────────────────────────────────────── */
+function init() {
+  wireEvents();
+  autoDetect();
+  setSrcIndicator("proxy", "INIT");
+  log("WebRTC Stats Monitor loaded. Fetching initial data…", "ok");
+  // Fetch immediately — don't wait for first interval
+  fetchStats();
+}
+
+// Expose for console debugging
+window.__webrtcStats = { state: state, fetchNow: fetchStats, log: log };
+
+init();
+</script>
+
+</body>
+</html>

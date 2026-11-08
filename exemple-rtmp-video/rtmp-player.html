@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>F5HLIVE · Player RTMP</title>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+<style>
+  :root {
+    --bg: #09090b;
+    --bg-card: #18181b;
+    --bg-card-hover: #1f1f23;
+    --bg-input: #27272a;
+    --border: #2a2a31;
+    --border-focus: #f43f5e;
+    --text: #fafafa;
+    --text-muted: #a1a1aa;
+    --text-dim: #71717a;
+    --accent: #f43f5e;
+    --accent-hover: #e11d48;
+    --accent-light: #fb7185;
+    --success: #10b981;
+    --success-bg: rgba(16,185,129,0.12);
+    --warning: #f59e0b;
+    --warning-bg: rgba(245,158,11,0.12);
+    --error: #ef4444;
+    --error-bg: rgba(239,68,68,0.12);
+    --info: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ===== Header ===== */
+  header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .header-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .logo-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.9); }
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+  }
+  .pill.live { background: var(--success-bg); color: var(--success); border-color: rgba(16,185,129,0.3); }
+  .pill.idle { color: var(--text-dim); }
+  .pill-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .pill.live .pill-dot { animation: pulse 1.5s ease-in-out infinite; }
+
+  /* ===== Layout ===== */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    width: 100%;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+  }
+  @media (max-width: 1024px) {
+    .container { grid-template-columns: 1fr; }
+  }
+
+  /* ===== Player ===== */
+  .player-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .player-card {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 16 / 9;
+  }
+  .player-card video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #000;
+    object-fit: contain;
+  }
+  .player-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.85) 100%);
+    color: var(--text);
+    text-align: center;
+    padding: 20px;
+    transition: opacity 0.2s;
+  }
+  .player-overlay.hidden { opacity: 0; pointer-events: none; }
+  .player-overlay svg {
+    width: 56px;
+    height: 56px;
+    color: var(--text-muted);
+  }
+  .player-overlay-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .player-overlay-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .player-loading .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Stats overlay (top-left of video) */
+  .stats-overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #fff;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .stats-overlay.visible { opacity: 1; }
+  .stats-overlay .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--error);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .stats-overlay .sep {
+    color: rgba(255,255,255,0.3);
+  }
+
+  /* Player controls bar */
+  .controls-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    border-color: #3f3f46;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+  .btn-danger {
+    background: var(--error);
+    border-color: var(--error);
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #dc2626;
+  }
+  .btn-icon {
+    padding: 9px 11px;
+  }
+  .btn svg { width: 15px; height: 15px; }
+  .controls-spacer { flex: 1; }
+  .time-display {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* URL bar (read-only) */
+  .url-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .url-bar-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .url-bar-value {
+    flex: 1;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .url-bar-value.empty { color: var(--text-dim); }
+
+  /* ===== Side panel ===== */
+  .side-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card-title svg { width: 15px; height: 15px; color: var(--accent); }
+
+  .form-group { margin-bottom: 12px; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .form-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: #2a2a30;
+  }
+  .form-input::placeholder { color: var(--text-dim); }
+  .form-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+  .form-hint code {
+    background: var(--bg-input);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--accent-light);
+  }
+
+  /* Quick presets */
+  .presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .preset-btn {
+    padding: 8px 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    font-family: inherit;
+  }
+  .preset-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .preset-btn strong {
+    display: block;
+    color: var(--text);
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .stat-value.small { font-size: 12px; }
+
+  /* Log */
+  .log-card { flex: 1; min-height: 200px; display: flex; flex-direction: column; }
+  .log-area {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    height: 220px;
+    overflow-y: auto;
+    color: #d4d4d8;
+  }
+  .log-area::-webkit-scrollbar { width: 6px; }
+  .log-area::-webkit-scrollbar-track { background: transparent; }
+  .log-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .log-line { padding: 1px 0; }
+  .log-line .ts { color: var(--text-dim); margin-right: 6px; }
+  .log-line.info { color: #d4d4d8; }
+  .log-line.success { color: var(--success); }
+  .log-line.warn { color: var(--warning); }
+  .log-line.error { color: var(--error); }
+  .log-line.debug { color: var(--info); }
+
+  /* OBS config */
+  .obs-config {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12px;
+  }
+  .obs-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+  }
+  .obs-row:last-child { border-bottom: none; }
+  .obs-k {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+  }
+  .obs-v {
+    color: var(--text);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .obs-v.token { color: var(--accent-light); }
+  .obs-v.muted { color: var(--text-dim); }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    margin-left: 6px;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+  /* Footer */
+  footer {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: auto;
+  }
+  footer code {
+    background: var(--bg-input);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--accent-light);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    transition: transform 0.25s ease;
+    z-index: 100;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--error); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-dot"></span>
+      F5HLIVE · Player RTMP
+    </div>
+    <div class="header-meta">
+      <span class="pill idle" id="statusPill">
+        <span class="pill-dot"></span>
+        <span id="statusText">Offline</span>
+      </span>
+      <span class="pill" id="versionPill">v2</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <!-- ===== Player section ===== -->
+  <div class="player-section">
+    <div class="player-card">
+      <video id="video" playsinline controls></video>
+      <div id="playerOverlay" class="player-overlay">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <div class="player-overlay-title">Pronto para assistir</div>
+        <div class="player-overlay-sub">Preencha <strong>Account ID</strong> e <strong>Stream Name</strong> ao lado → clique em <strong>Play</strong></div>
+      </div>
+      <!-- Stats overlay on video -->
+      <div id="statsOverlay" class="stats-overlay" aria-live="polite">
+        <span class="live-dot"></span>
+        <span>LIVE</span>
+        <span class="sep">·</span>
+        <span id="statsViewers">👁 0</span>
+        <span class="sep">·</span>
+        <span id="statsBitrate">— kbps</span>
+      </div>
+    </div>
+
+    <!-- URL preview bar -->
+    <div class="url-bar">
+      <span class="url-bar-label">URL</span>
+      <span class="url-bar-value empty" id="urlPreview">preencha account + stream</span>
+    </div>
+
+    <!-- Player controls -->
+    <div class="controls-bar">
+      <button id="btnPlay" class="btn btn-primary">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
+        Play
+      </button>
+      <button id="btnStop" class="btn btn-danger" disabled>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 9h6v6H9z"/></svg>
+        Stop
+      </button>
+      <button id="btnMute" class="btn">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M5 8h2l2-3h6l2 3h2v8h-2l-2 3H9l-2-3H5V8z"/></svg>
+        Mute
+      </button>
+      <button id="btnFs" class="btn btn-icon" title="Tela cheia">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+      </button>
+      <div class="controls-spacer"></div>
+      <span class="time-display" id="timeDisplay">00:00</span>
+    </div>
+
+    <!-- Log -->
+    <div class="card log-card">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Log
+        <button class="copy-btn" style="margin-left: auto;" onclick="clearLog()">Limpar</button>
+      </div>
+      <div id="logArea" class="log-area"></div>
+    </div>
+  </div>
+
+  <!-- ===== Side panel ===== -->
+  <div class="side-section">
+    <!-- Connect card -->
+    <div class="card">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        Conectar
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="host">Host</label>
+        <input type="text" id="host" class="form-input" value="director-ca.f5hlive.com.br" placeholder="director-ca.f5hlive.com.br">
+        <div class="form-hint">Domínio do cluster (vindo do banco). Padrão: <code>director-ca.f5hlive.com.br</code></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="accountId">Account ID</label>
+        <input type="text" id="accountId" class="form-input" value="a3RD6P" placeholder="ex: Aboias11" autocomplete="off">
+        <div class="form-hint">Identificador da conta do streamer</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="streamName">Stream Name</label>
+        <input type="text" id="streamName" class="form-input" value="teste1" placeholder="ex: teste1, live1, festa" autocomplete="off">
+        <div class="form-hint">Mesmo nome que está na URL do OBS (<code>/live/teste1</code>)</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Protocolo</label>
+        <div class="presets">
+          <button class="preset-btn" data-proto="https" data-port="">
+            <strong>HTTPS/WSS</strong>
+            Produção (443)
+          </button>
+          <button class="preset-btn" data-proto="http" data-port="3000">
+            <strong>HTTP/WS</strong>
+            Localhost:3000
+          </button>
+        </div>
+        <div class="form-hint" id="protoHint" style="margin-top: 8px;">Auto: HTTPS se a página for HTTPS, senão HTTP</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Porta (opcional)</label>
+        <input type="text" id="port" class="form-input" placeholder="vazio = 443/80 (prod)" value="">
+        <div class="form-hint">Em prod deixe vazio. Em localhost use <code>3000</code> ou <code>8000</code></div>
+      </div>
+
+      <div class="form-group">
+        <button id="btnApply" class="btn btn-primary" style="width: 100%;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Aplicar e Play
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats card -->
+    <div class="card">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Estatísticas
+      </div>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-label">Estado</div>
+          <div class="stat-value small" id="statState">IDLE</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Tempo</div>
+          <div class="stat-value" id="statTime">00:00</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Bitrate</div>
+          <div class="stat-value small" id="statBitrate">— kbps</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Viewers</div>
+          <div class="stat-value" id="statViewers">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OBS Outros - config card (referência para o streamer) -->
+    <div class="card">
+      <div class="card-title">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        Configurar no OBS
+      </div>
+      <div class="obs-config">
+        <div class="obs-row">
+          <span class="obs-k">Service</span>
+          <span class="obs-v">Custom</span>
+        </div>
+        <div class="obs-row">
+          <span class="obs-k">Server</span>
+          <span class="obs-v" id="obsServer">rtmp://director-ca.f5hlive.com.br:1935/live/teste1</span>
+          <button class="copy-btn" onclick="copyObs('obsServer')">Copiar</button>
+        </div>
+        <div class="obs-row">
+          <span class="obs-k">Stream Key</span>
+          <span class="obs-v token" id="obsKey">&lt;token-do-banco&gt;</span>
+          <button class="copy-btn" onclick="copyObs('obsKey')">Copiar</button>
+        </div>
+        <div class="obs-row">
+          <span class="obs-k">Auth</span>
+          <span class="obs-v muted">DESMARCADA</span>
+        </div>
+        <div class="obs-row">
+          <span class="obs-k">User/Pass</span>
+          <span class="obs-v muted">vazio</span>
+        </div>
+      </div>
+      <div class="form-hint" style="margin-top: 10px;">
+        ✅ O OBS envia <code>/live/teste1</code> + Key=token (oculto). O servidor <strong>captura o streamName da URL</strong> e o viewer acessa pela URL pública <strong>sem token</strong>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Player RTMP · <code>mpegts.js v1.7.3</code> · consome <code>/live/&lt;accountId&gt;/&lt;streamName&gt;.flv</code> (sem token na URL)
+</footer>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ─── State ──────────────────────────────────────────────────────────────
+  let player = null;
+  let currentUrl = null;
+  let startTs = 0;
+  let lastBytes = 0;
+  let lastTs = 0;
+  let statTimer = null;
+  let statsPollTimer = null;
+  let isMuted = false;
+
+  const $ = (id) => document.getElementById(id);
+
+  // ─── Toast ──────────────────────────────────────────────────────────────
+  function toast(msg, type) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.className = "toast show" + (type ? " " + type : "");
+    setTimeout(() => { el.className = "toast"; }, 2500);
+  }
+
+  // ─── Logging ────────────────────────────────────────────────────────────
+  function log(msg, level) {
+    level = level || "info";
+    const line = document.createElement("div");
+    line.className = "log-line " + level;
+    const ts = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+    line.innerHTML = '<span class="ts">[' + ts + ']</span>' + msg;
+    const area = $("logArea");
+    area.appendChild(line);
+    area.scrollTop = area.scrollHeight;
+    while (area.children.length > 200) {
+      area.removeChild(area.firstChild);
+    }
+  }
+  window.clearLog = function () { $("logArea").innerHTML = ""; };
+
+  // ─── Auto-detect protocol from current page ─────────────────────────────
+  function autoDetectProtocol() {
+    // Se a página está em HTTPS, default WSS. Senão WS.
+    if (location.protocol === "https:") {
+      return { proto: "https", port: "" }; // 443 default
+    }
+    return { proto: "http", port: "3000" };
+  }
+
+  // ─── URL builder ────────────────────────────────────────────────────────
+  function buildUrl() {
+    const host = $("host").value.trim().replace(/\/+$/, "");
+    const port = $("port").value.trim();
+    const accountId = $("accountId").value.trim();
+    const streamName = $("streamName").value.trim();
+    if (!host || !accountId || !streamName) return null;
+
+    // Detectar proto baseado na página atual
+    const isHttps = location.protocol === "https:";
+    const proto = isHttps ? "wss" : "ws";
+
+    let portSuffix = "";
+    if (port && port !== "") {
+      const p = parseInt(port, 10);
+      if ((proto === "ws" && p !== 80) || (proto === "wss" && p !== 443)) {
+        portSuffix = ":" + port;
+      }
+    }
+
+    return proto + "://" + host + portSuffix + "/live/" + accountId + "/" + streamName + ".flv";
+  }
+
+  function updateUrlPreview() {
+    const url = buildUrl();
+    const el = $("urlPreview");
+    if (url) {
+      el.textContent = url;
+      el.classList.remove("empty");
+    } else {
+      el.textContent = "preencha account + stream";
+      el.classList.add("empty");
+    }
+    updateObsConfig();
+  }
+
+  function updateObsConfig() {
+    const host = $("host").value.trim().replace(/\/+$/, "");
+    const streamName = $("streamName").value.trim();
+    if (host && streamName) {
+      $("obsServer").textContent = "rtmp://" + host + ":1935/live/" + streamName;
+    } else if (host) {
+      $("obsServer").textContent = "rtmp://" + host + ":1935/live/<streamName>";
+    } else {
+      $("obsServer").textContent = "rtmp://<host>:1935/live/<streamName>";
+    }
+  }
+
+  window.copyObs = function (id) {
+    const text = $(id).textContent;
+    if (!text || text.includes("<")) {
+      toast("Preencha os campos primeiro", "error");
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = event.target;
+      btn.classList.add("copied");
+      btn.textContent = "✓";
+      setTimeout(() => { btn.classList.remove("copied"); btn.textContent = "Copiar"; }, 1500);
+      toast("Copiado: " + text.slice(0, 60), "success");
+    });
+  };
+
+  // ─── Status pill ────────────────────────────────────────────────────────
+  function setStatus(state, text) {
+    const pill = $("statusPill");
+    const txt = $("statusText");
+    pill.className = "pill " + state;
+    txt.textContent = text;
+  }
+
+  function setOverlay(state, title, sub) {
+    const overlay = $("playerOverlay");
+    if (state === "hidden") {
+      overlay.className = "player-overlay hidden";
+      return;
+    }
+    overlay.className = "player-overlay " + state;
+    if (title) {
+      const t = overlay.querySelector(".player-overlay-title");
+      if (t) t.textContent = title;
+    }
+    if (sub) {
+      const s = overlay.querySelector(".player-overlay-sub");
+      if (s) s.innerHTML = sub;
+    }
+  }
+
+  // ─── Player ─────────────────────────────────────────────────────────────
+  function startPlayback() {
+    const url = buildUrl();
+    if (!url) {
+      toast("Preencha host, accountId e streamName", "error");
+      log("❌ Não foi possível construir a URL — preencha todos os campos", "error");
+      return;
+    }
+
+    if (player) {
+      stopPlayback(false);
+    }
+
+    log("▶ Play: <strong style='color:#fb7185'>" + escapeHtml(url) + "</strong>", "info");
+    setStatus("idle", "Conectando...");
+    setOverlay("player-loading", "Conectando...", "");
+    $("statsOverlay").classList.remove("visible");
+
+    try {
+      if (typeof mpegts === "undefined") {
+        throw new Error("mpegts.js não carregou — verifique sua conexão");
+      }
+      player = mpegts.createPlayer({
+        type: "flv",
+        url: url,
+        isLive: true,
+        cors: true
+      }, {
+        enableWorker: false,
+        lazyLoad: false,
+        autoCleanupSourceBuffer: true,
+        stashInitialSize: 128,
+        liveBufferLatencyChasing: true,
+        liveBufferLatencyMaxLatency: 1.5,
+        liveBufferLatencyMinRemain: 0.4
+      });
+    } catch (e) {
+      log("❌ Erro ao criar player: " + e.message, "error");
+      setStatus("idle", "Erro");
+      setOverlay("", "Erro", escapeHtml(e.message));
+      return;
+    }
+
+    currentUrl = url;
+
+    player.on(mpegts.Events.ERROR, function (errType, errDetail) {
+      log("❌ ERRO " + errType + (errDetail ? ": " + errDetail : ""), "error");
+      if (errType === mpegts.ErrorTypes.NETWORK_ERROR) {
+        setOverlay("", "Falha de rede", "Verifique se o OBS está transmitindo e se o host está correto");
+      } else if (errType === mpegts.ErrorTypes.MEDIA_ERROR) {
+        setOverlay("", "Erro de mídia", "Stream pode estar corrompido ou codec não suportado");
+      }
+      setStatus("idle", "Erro");
+    });
+
+    player.on(mpegts.Events.LOADING_COMPLETE, function () {
+      log("📡 Stream finalizado (loading complete)", "warn");
+      setStatus("idle", "Finalizado");
+      setOverlay("", "Stream finalizado", "O publisher parou a transmissão");
+      stopPlayback(true);
+    });
+
+    player.on(mpegts.Events.STATISTICS_INFO, function (s) {
+      // s = { totalReportedDecodeFrames, totalReportedVideoFrames, currentFps, networkTraffic: { totalKB, speedKBps } }
+      if (s && s.networkTraffic) {
+        lastBytes = (s.networkTraffic.totalKB || 0) * 1024;
+        const speed = s.networkTraffic.speedKBps || 0;
+        const kbps = Math.round(speed * 8);
+        $("statBitrate").textContent = kbps + " kbps";
+        $("statsBitrate").textContent = kbps + " kbps";
+      }
+      if (s && typeof s.currentFps === "number") {
+        // Could show FPS if needed
+      }
+    });
+
+    try {
+      player.attachMediaElement($("video"));
+      player.load();
+      player.play().then(() => {
+        log("✅ Tocando!", "success");
+        setStatus("live", "AO VIVO");
+        setOverlay("hidden");
+        $("statsOverlay").classList.add("visible");
+        $("btnPlay").disabled = true;
+        $("btnStop").disabled = false;
+        startTs = Date.now();
+        startStatsPoll();
+      }).catch((e) => {
+        log("⚠ Play() rejeitado (clique Play novamente): " + e.message, "warn");
+      });
+    } catch (e) {
+      log("❌ Erro ao iniciar: " + e.message, "error");
+      setStatus("idle", "Erro");
+      setOverlay("", "Erro", escapeHtml(e.message));
+    }
+  }
+
+  function stopPlayback(silent) {
+    if (statTimer) { clearInterval(statTimer); statTimer = null; }
+    if (statsPollTimer) { clearInterval(statsPollTimer); statsPollTimer = null; }
+
+    if (player) {
+      try {
+        player.pause();
+        player.unload();
+        player.detachMediaElement();
+        player.destroy();
+      } catch (e) {}
+      player = null;
+    }
+
+    $("btnPlay").disabled = false;
+    $("btnStop").disabled = true;
+    $("statState").textContent = "IDLE";
+    $("statTime").textContent = "00:00";
+    $("statBitrate").textContent = "— kbps";
+    $("statsBitrate").textContent = "— kbps";
+    $("statViewers").textContent = "0";
+    $("statsViewers").textContent = "👁 0";
+    $("statsOverlay").classList.remove("visible");
+
+    if (!silent) {
+      log("■ Stop", "info");
+      setStatus("idle", "Offline");
+      setOverlay("", "Pronto para assistir", "Preencha <strong>Account ID</strong> e <strong>Stream Name</strong> ao lado → clique em <strong>Play</strong>");
+    }
+  }
+
+  // ─── Stats timer (elapsed time) ─────────────────────────────────────────
+  function startStatsPoll() {
+    if (statTimer) clearInterval(statTimer);
+    statTimer = setInterval(() => {
+      if (!startTs) return;
+      const elapsed = Math.floor((Date.now() - startTs) / 1000);
+      const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+      const ss = String(elapsed % 60).padStart(2, "0");
+      $("statTime").textContent = mm + ":" + ss;
+      $("timeDisplay").textContent = mm + ":" + ss;
+      $("statState").textContent = "LIVE";
+    }, 1000);
+
+    // Poll viewer count from /api/rtmp/stats
+    if (statsPollTimer) clearInterval(statsPollTimer);
+    const host = $("host").value.trim().replace(/\/+$/, "");
+    const accountId = $("accountId").value.trim();
+    const streamName = $("streamName").value.trim();
+    if (!host || !accountId || !streamName) return;
+
+    const isHttps = location.protocol === "https:";
+    const port = $("port").value.trim();
+    let portSuffix = "";
+    if (port) {
+      portSuffix = ":" + port;
+    } else if (!isHttps) {
+      portSuffix = ":3000";
+    }
+    const statsUrl = (isHttps ? "https" : "http") + "://" + host + portSuffix + "/api/rtmp/stats";
+
+    statsPollTimer = setInterval(() => {
+      fetch(statsUrl, { mode: "cors" })
+        .then(r => r.json())
+        .then(data => {
+          // Procura o stream atual na lista
+          if (data && data.streams) {
+            const match = data.streams.find(s =>
+              s.accountId === accountId && s.streamName === streamName
+            );
+            if (match) {
+              const vc = match.viewers || match.viewCount || 0;
+              $("statViewers").textContent = vc;
+              $("statsViewers").textContent = "👁 " + vc;
+            }
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  // ─── Wire up events ─────────────────────────────────────────────────────
+  function init() {
+    // Auto-detect proto on load
+    const auto = autoDetectProtocol();
+    log("🚀 Player RTMP iniciado", "info");
+    log("📡 Protocolo detectado: " + (location.protocol === "https:" ? "WSS/HTTPS (prod)" : "WS/HTTP (local)"), "debug");
+    log("💡 Preencha os campos ao lado e clique em Aplicar e Play", "info");
+
+    // Update preview on input
+    ["host", "accountId", "streamName", "port"].forEach(id => {
+      $(id).addEventListener("input", updateUrlPreview);
+    });
+
+    // Preset buttons
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const proto = btn.dataset.proto;
+        const port = btn.dataset.port;
+        if (proto === "https") {
+          // Força HTTPS — recarrega a página em https se necessário
+          if (location.protocol !== "https:") {
+            toast("Recarregue em HTTPS para usar WSS", "warn");
+          }
+          $("port").value = port;
+          $("protoHint").innerHTML = "✅ <strong>HTTPS/WSS</strong> — porta 443 (prod)";
+        } else {
+          $("port").value = port;
+          $("protoHint").innerHTML = "✅ <strong>HTTP/WS</strong> — porta " + port + " (local)";
+        }
+        document.querySelectorAll(".preset-btn").forEach(b => b.style.borderColor = "");
+        btn.style.borderColor = "var(--accent)";
+        updateUrlPreview();
+      });
+    });
+
+    // Buttons
+    $("btnPlay").addEventListener("click", startPlayback);
+    $("btnStop").addEventListener("click", () => stopPlayback(false));
+    $("btnApply").addEventListener("click", startPlayback);
+
+    $("btnMute").addEventListener("click", () => {
+      const v = $("video");
+      v.muted = !v.muted;
+      isMuted = v.muted;
+      $("btnMute").innerHTML = isMuted
+        ? '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.919 3.667 12 4.105 12 5v14c0 .895-1.081 1.333-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg> Mudo'
+        : '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M5 8h2l2-3h6l2 3h2v8h-2l-2 3H9l-2-3H5V8z"/></svg> Mute';
+    });
+
+    $("btnFs").addEventListener("click", () => {
+      const v = $("video");
+      if (v.requestFullscreen) v.requestFullscreen();
+      else if (v.webkitRequestFullscreen) v.webkitRequestFullscreen();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (player) stopPlayback(false);
+        else startPlayback();
+      }
+      if (e.code === "KeyM") $("btnMute").click();
+      if (e.code === "KeyF") $("btnFs").click();
+    });
+
+    // Initial state
+    updateUrlPreview();
+  }
+
+  // Boot
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>

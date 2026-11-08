@@ -1,0 +1,37 @@
+<html>
+  <head>
+    <!-- Import the Millicast JS SDK -->
+     <script src="https://sdk.f5hlive.com.br/stream-sdk/ws/v2/webtrccast.umd.js"></script>
+  </head>
+
+  <body>
+    <script type="module">
+      const yourPublishingToken = "56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa"
+      const yourStreamName = "test123"
+
+      // Define callback for generate new tokens
+      const tokenGenerator = () => millicast.Director.getPublisher({
+        token: yourPublishingToken,
+        streamName: yourStreamName
+      })
+
+      // Create a new instance
+      const millicastPublish = new millicast.Publish(undefined, tokenGenerator)
+
+      // Get user camera and microphone
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+
+      // Publishing options
+      const broadcastOptions = {
+        mediaStream
+      }
+
+      // Start broadcast
+      try {
+        await millicastPublish.connect(broadcastOptions)
+      } catch (e) {
+        console.log('Connection failed, handle error', e)
+      }
+    </script>
+  </body>
+</html>

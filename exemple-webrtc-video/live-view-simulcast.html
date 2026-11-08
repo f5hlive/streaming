@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>F5HLIVE · Live View (WebRTC Simulcast)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#000;--fg:#fff;--muted:#a1a1aa;--dim:#52525b;
+  --accent:#8b5cf6;--accent-h:#7c3aed;
+  --danger:#ef4444;--danger-h:#dc2626;
+  --success:#10b981;--warn:#f59e0b;
+  --simulcast:#6366f1;
+}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
+body{position:relative}
+
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1}
+
+/* OFFLINE / STATUS OVERLAY */
+.center-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:rgba(0,0,0,.92);z-index:30;transition:opacity .3s}
+.center-overlay.hidden{opacity:0;pointer-events:none}
+.center-overlay .ico{font-size:4rem;color:var(--accent);opacity:.85}
+.center-overlay h2{font-size:1.4rem;font-weight:700}
+.center-overlay p{font-size:.82rem;color:var(--muted);text-align:center;max-width:360px;line-height:1.5}
+.spinner{width:42px;height:42px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-cta{padding:12px 28px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;transition:all .2s}
+.btn-cta:hover{background:var(--accent-h);transform:translateY(-1px)}
+.btn-cta.danger{background:var(--danger)}
+.btn-cta.danger:hover{background:var(--danger-h)}
+
+/* Botão circular grande (só ícone — igual rtmp-creator.html) */
+.btn-start{width:80px;height:80px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:2.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:0 8px 32px rgba(139,92,246,.4)}
+.btn-start:hover{background:var(--accent-h);transform:scale(1.08)}
+.btn-start:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* TOP BAR */
+.top-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:16px;z-index:20;background:linear-gradient(to bottom,rgba(0,0,0,.7) 0%,transparent 100%);pointer-events:none}
+.top-bar>*{pointer-events:auto}
+.badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);border-radius:20px;font-size:.7rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--fg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .3s}
+.badge.simulcast{background:rgba(99,102,241,.25);border-color:var(--simulcast);color:#c7d2fe}
+.badge.simulcast::before{content:'';width:6px;height:6px;background:#22d3ee;border-radius:50%;box-shadow:0 0 6px #22d3ee}
+.badge.view-status{color:var(--muted)}
+.badge.view-status.on{color:var(--success);border-color:rgba(16,185,129,.4)}
+.badge.view-status::before{content:'';width:6px;height:6px;background:var(--danger);border-radius:50%}
+.badge.view-status.on::before{background:var(--success);box-shadow:0 0 6px var(--success)}
+.badge.layer{background:rgba(139,92,246,.25);border-color:var(--accent);color:#c4b5fd}
+.badge.layer .layer-tag{background:var(--accent);color:#fff;padding:1px 7px;border-radius:3px;font-size:.62rem;margin-left:4px}
+
+.top-actions{display:flex;gap:8px;align-items:center}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.05rem;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .2s}
+.icon-btn:hover{background:rgba(139,92,246,.25);color:var(--fg);border-color:var(--accent)}
+
+/* STATS PILL */
+.stats-pill{position:absolute;top:70px;right:16px;z-index:18;display:flex;gap:6px;padding:8px 12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:.72rem;color:var(--muted);font-family:'JetBrains Mono','SF Mono',monospace;opacity:0;transition:opacity .3s;pointer-events:none}
+.stats-pill.visible{opacity:1}
+.stats-pill .stat{display:flex;align-items:center;gap:4px}
+.stats-pill .stat i{font-size:.85rem}
+.stats-pill .stat strong{color:var(--fg);font-weight:700}
+.stats-pill .stat.on strong{color:var(--success)}
+.stats-pill .stat.off strong{color:var(--danger)}
+.stats-pill .sep{color:var(--dim)}
+
+/* CONTROLS (bottom) */
+.controls{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:14px;padding:22px;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.4) 60%,transparent 100%);z-index:20;transition:opacity .3s}
+.controls.hidden{opacity:0;pointer-events:none}
+.ctrl-btn{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.35rem;color:#fff;transition:all .2s;background:rgba(255,255,255,.12);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.ctrl-btn:hover:not(:disabled){background:rgba(255,255,255,.2);transform:scale(1.08)}
+.ctrl-btn.primary{width:72px;height:72px;font-size:1.85rem;background:var(--accent);box-shadow:0 6px 24px rgba(139,92,246,.45)}
+.ctrl-btn.primary:hover:not(:disabled){background:var(--accent-h)}
+.ctrl-btn.primary.live{background:var(--danger);box-shadow:0 6px 24px rgba(239,68,68,.5)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+/* CHAT SIDEBAR (slide-in right) */
+.chat-toggle{position:absolute;top:50%;right:0;transform:translateY(-50%);width:36px;height:64px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.15);border-right:none;border-radius:10px 0 0 10px;color:var(--fg);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:25;transition:all .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.chat-toggle:hover{background:rgba(139,92,246,.3)}
+.chat-toggle i{font-size:1.1rem}
+.chat-toggle .count{position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;font-size:.6rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.chat-sidebar{position:absolute;top:0;right:0;bottom:0;width:340px;background:#0a0a0c;border-left:1px solid #1f1f23;display:flex;flex-direction:column;z-index:35;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)}
+.chat-sidebar.open{transform:translateX(0)}
+.chat-header{padding:16px;border-bottom:1px solid #1f1f23;display:flex;justify-content:space-between;align-items:center}
+.chat-header h3{font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.chat-header h3 i{color:var(--accent)}
+.chat-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px;border-radius:6px;transition:all .15s}
+.chat-close:hover{color:var(--fg);background:rgba(255,255,255,.06)}
+.chat-status-dot{width:8px;height:8px;border-radius:50%;background:#555;transition:all .3s}
+.chat-status-dot.online{background:var(--success);box-shadow:0 0 6px var(--success)}
+.chat-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.chat-scroll::-webkit-scrollbar{width:6px}
+.chat-scroll::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+.msg{font-size:.85rem;line-height:1.4;word-wrap:break-word;animation:popIn .25s ease-out}
+@keyframes popIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg .user{font-weight:700;margin-right:6px;font-size:.78rem}
+.msg.me{align-self:flex-end;background:#1f1f23;padding:8px 12px;border-radius:14px;border-bottom-right-radius:4px;max-width:88%}
+.msg.me .user{color:var(--accent);display:block;margin-bottom:2px;text-align:right}
+.msg.other .user{color:#a3e635}
+.chat-input-wrap{padding:14px;border-top:1px solid #1f1f23;background:#0a0a0c}
+.chat-box{display:flex;gap:6px;background:#09090b;border:1px solid #27272a;padding:6px;border-radius:24px;transition:border-color .2s}
+.chat-box:focus-within{border-color:var(--accent)}
+.chat-field{flex:1;background:transparent;border:none;color:#fff;padding:6px 4px;font-size:.85rem;font-family:inherit;outline:none}
+.chat-field::placeholder{color:#555}
+.send-btn{background:var(--accent);color:#fff;border:none;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem;transition:background .2s}
+.send-btn:hover{background:var(--accent-h)}
+
+.layer-wrap{position:relative}
+.layer-btn{height:52px;padding:0 18px;border-radius:26px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.5);color:var(--fg);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:600;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all .2s;font-family:inherit}
+.layer-btn:hover{background:rgba(139,92,246,.25);border-color:var(--accent)}
+.layer-btn i{font-size:1rem;color:var(--muted)}
+.layer-menu{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:#18181b;border:1px solid #3f3f46;border-radius:10px;padding:6px;min-width:200px;display:none;z-index:30;box-shadow:0 10px 32px rgba(0,0,0,.5)}
+.layer-menu.open{display:block}
+.layer-item{padding:9px 14px;border-radius:6px;cursor:pointer;font-size:.82rem;color:var(--fg);display:flex;justify-content:space-between;align-items:center;transition:background .15s}
+.layer-item:hover{background:rgba(139,92,246,.2)}
+.layer-item.active{background:rgba(139,92,246,.25);color:#c4b5fd}
+.layer-item small{color:var(--muted);font-size:.7rem}
+
+/* INFO PANEL (top-left, below top bar) — bitrate/res/fps */
+.info-panel{position:absolute;top:70px;left:16px;z-index:18;padding:10px 14px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-family:'JetBrains Mono','SF Mono',monospace;font-size:.72rem;display:flex;gap:14px;align-items:center;opacity:0;transition:opacity .3s}
+.info-panel.visible{opacity:1}
+.info-panel .ip-item{display:flex;flex-direction:column;gap:1px}
+.info-panel .ip-label{color:var(--dim);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px}
+.info-panel .ip-value{color:var(--fg);font-weight:700;font-size:.78rem}
+.info-panel .sep{color:var(--dim)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.modal-bg.visible{display:flex}
+.modal{background:#0f0f12;border:1px solid #27272a;border-radius:14px;padding:24px;width:92%;max-width:440px;max-height:85vh;display:flex;flex-direction:column}
+.modal.wide{max-width:720px}
+.modal h2{font-size:1.05rem;margin-bottom:6px;font-weight:700;display:flex;align-items:center;gap:8px}
+.modal h2 i{color:var(--accent)}
+.modal .modal-sub{font-size:.72rem;color:var(--dim);margin-bottom:18px;font-family:monospace;word-break:break-all}
+.modal label{display:block;font-size:.68rem;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;margin-top:14px}
+.modal input{width:100%;padding:10px 12px;background:#1a1a1e;border:1px solid #2a2a2e;border-radius:8px;color:#fff;font-size:.85rem;font-family:monospace;transition:border-color .15s}
+.modal input:focus{outline:none;border-color:var(--accent)}
+.modal-actions{display:flex;gap:10px;margin-top:22px}
+.modal-actions button{flex:1;padding:11px;border:none;border-radius:8px;font-size:.83rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.btn-cancel{background:#1f1f23;color:var(--muted)}
+.btn-cancel:hover{background:#27272a;color:var(--fg)}
+.btn-confirm{background:var(--accent);color:#fff}
+.btn-confirm:hover{background:var(--accent-h)}
+
+/* LOGS MODAL */
+.logs-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.logs-toolbar .grow{flex:1}
+.logs-toolbar .badge{padding:4px 10px;font-size:.65rem}
+.log-area{flex:1;background:#08080a;border:1px solid #1f1f23;border-radius:8px;padding:12px;overflow-y:auto;font-family:'JetBrains Mono','SF Mono',Consolas,monospace;font-size:.74rem;line-height:1.55;min-height:300px;max-height:50vh;scrollbar-width:thin;scrollbar-color:#333 transparent}
+.log-area::-webkit-scrollbar{width:6px}
+.log-area::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+.log-line{margin-bottom:2px;white-space:pre-wrap;word-break:break-all}
+.log-line.info{color:#7dd3fc}
+.log-line.ok{color:#86efac}
+.log-line.warn{color:#fcd34d}
+.log-line.err{color:#fca5a5}
+.log-line .ts{color:#52525b;margin-right:6px}
+
+/* TOAST */
+.toast{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);padding:10px 22px;background:rgba(139,92,246,.95);color:#fff;border-radius:8px;font-size:.82rem;z-index:40;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.toast.visible{opacity:1}
+.toast.err{background:rgba(239,68,68,.95)}
+.toast.ok{background:rgba(16,185,129,.95)}
+
+@media (max-width:640px){
+  .controls{padding:14px;gap:8px}
+  .ctrl-btn{width:46px;height:46px;font-size:1.15rem}
+  .ctrl-btn.primary{width:62px;height:62px;font-size:1.55rem}
+  .layer-btn{height:46px;padding:0 14px;font-size:.78rem}
+  .chat-sidebar{width:100%}
+  .stats-pill,.info-panel{font-size:.65rem;padding:6px 8px;top:60px}
+  .info-panel{left:8px}
+  .stats-pill{right:8px}
+  .top-bar{padding:10px}
+  .badge{font-size:.62rem;padding:5px 9px}
+  .info-panel{flex-wrap:wrap;max-width:calc(100% - 100px)}
+}
+</style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline></video>
+
+<!-- OFFLINE OVERLAY (initial) -->
+<div class="center-overlay" id="offlineOverlay">
+  <i class="ti ti-device-tv-off ico"></i>
+  <h2>Pronto para assistir</h2>
+  <p id="offlineMsg">Conta <strong>a3RD6P</strong> · Stream <strong>test123</strong></p>
+  <div style="display:flex;gap:14px;align-items:center">
+    <button class="btn-start" id="btnPlayOffline" title="Assistir"><i class="ti ti-player-play-filled"></i></button>
+    <button class="icon-btn" id="btnConfigOffline" style="width:80px;height:80px;font-size:2rem" title="Configurar"><i class="ti ti-adjustments"></i></button>
+  </div>
+</div>
+
+<!-- STATUS OVERLAY (connecting) -->
+<div class="center-overlay hidden" id="statusOverlay">
+  <div class="spinner"></div>
+  <h2 id="statusTitle">Conectando...</h2>
+  <p id="statusSub">Autenticando com servidor de mídia...</p>
+</div>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="badges">
+    <div class="badge simulcast">SIMULCAST</div>
+    <div class="badge view-status" id="viewStatusBadge">OFFLINE</div>
+    <div class="badge layer">Camada <span class="layer-tag" id="layerTag">AUTO</span></div>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="btnSettings" title="Configurações"><i class="ti ti-adjustments"></i></button>
+    <button class="icon-btn" id="btnLogs" title="Logs"><i class="ti ti-terminal-2"></i></button>
+    <button class="icon-btn" id="btnFs" title="Tela cheia"><i class="ti ti-maximize"></i></button>
+  </div>
+</div>
+
+<!-- INFO PANEL (live bitrate/res/fps) -->
+<div class="info-panel" id="infoPanel">
+  <div class="ip-item"><span class="ip-label">Bitrate</span><span class="ip-value" id="ipBitrate">—</span></div>
+  <span class="sep">·</span>
+  <div class="ip-item"><span class="ip-label">Resolução</span><span class="ip-value" id="ipRes">—</span></div>
+  <span class="sep">·</span>
+  <div class="ip-item"><span class="ip-label">FPS</span><span class="ip-value" id="ipFps">—</span></div>
+  <span class="sep">·</span>
+  <div class="ip-item"><span class="ip-label">Camada</span><span class="ip-value" id="ipLayer">—</span></div>
+</div>
+
+<!-- STATS PILL -->
+<div class="stats-pill" id="statsPill">
+  <div class="stat" title="Viewers"><i class="ti ti-eye"></i><strong id="statViewCount">—</strong></div>
+  <span class="sep">·</span>
+  <div class="stat" title="Publishers"><i class="ti ti-broadcast"></i><strong id="statPubCount">—</strong></div>
+  <span class="sep">·</span>
+  <div class="stat" id="statViewStatus"><i class="ti ti-bolt-off"></i><strong>—</strong></div>
+</div>
+
+<!-- CONTROLS (bottom) -->
+<div class="controls hidden" id="controls">
+  <div class="layer-wrap">
+    <button class="layer-btn" id="btnLayer" title="Camada"><i class="ti ti-adjustments-horizontal"></i><span id="layerLabel">Auto</span><i class="ti ti-chevron-up"></i></button>
+    <div class="layer-menu" id="layerMenu">
+      <div class="layer-item active" data-v="auto">Auto <small>adaptativo (GCC/TWCC)</small></div>
+      <div class="layer-item" data-v="low">Low <small>~150 kbps</small></div>
+      <div class="layer-item" data-v="mid">Mid <small>~500 kbps</small></div>
+      <div class="layer-item" data-v="high">High <small>~1.5 Mbps</small></div>
+    </div>
+  </div>
+  <button class="ctrl-btn primary" id="btnWatch" title="Assistir"><i class="ti ti-player-play-filled"></i></button>
+  <button class="ctrl-btn danger" id="btnDisconnect" title="Desconectar" disabled><i class="ti ti-plug-off"></i></button>
+  <button class="ctrl-btn" id="btnChat" title="Chat"><i class="ti ti-message-2"></i><span class="count" id="chatCount" style="display:none">0</span></button>
+</div>
+
+<!-- CHAT SIDEBAR -->
+<button class="chat-toggle" id="chatToggle" title="Chat"><i class="ti ti-message-2"></i></button>
+<div class="chat-sidebar" id="chatSidebar">
+  <div class="chat-header">
+    <h3><i class="ti ti-message-2"></i> Stream Chat <div class="chat-status-dot" id="chatStatusDot"></div></h3>
+    <button class="chat-close" id="chatClose"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="chat-scroll" id="chatContainer">
+    <div class="msg other"><span class="user">Sistema</span>Chat conectado. Boa transmissão!</div>
+  </div>
+  <div class="chat-input-wrap">
+    <div class="chat-box">
+      <input type="text" id="chatInput" class="chat-field" placeholder="Falar no chat..." maxlength="500">
+      <button class="send-btn" id="sendChat"><i class="ti ti-send"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settingsModalBg">
+  <div class="modal">
+    <h2><i class="ti ti-adjustments"></i> Configurar Visualização</h2>
+    <div class="modal-sub" id="urlHint">https://director-ca.f5hlive.com.br</div>
+    <label>Server Host</label>
+    <input type="text" id="mServerHost" placeholder="director-ca.f5hlive.com.br" value="director-ca.f5hlive.com.br">
+    <label>Account ID</label>
+    <input type="text" id="mAccountId" placeholder="account-id" value="a3RD6P">
+    <label>Stream Name</label>
+    <input type="text" id="mStreamName" value="test123">
+    <div class="modal-actions">
+      <button class="btn-cancel" id="settingsCancel"><i class="ti ti-x"></i> Cancelar</button>
+      <button class="btn-confirm" id="settingsSave"><i class="ti ti-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGS MODAL -->
+<div class="modal-bg" id="logsModalBg">
+  <div class="modal wide">
+    <h2><i class="ti ti-terminal-2"></i> Logs do Sistema</h2>
+    <div class="modal-sub" id="logsSub">últimas 500 linhas · auto-scroll ativo</div>
+    <div class="logs-toolbar">
+      <span class="badge" id="logsCount">0 linhas</span>
+      <div class="grow"></div>
+      <button class="btn-cancel" id="logsAutoscroll" style="padding:6px 12px;flex:none;font-size:.72rem" title="Toggle auto-scroll"><i class="ti ti-arrow-autofit-down"></i> Auto</button>
+      <button class="btn-cancel" id="logsCopy" style="padding:6px 12px;flex:none;font-size:.72rem" title="Copiar"><i class="ti ti-copy"></i> Copiar</button>
+      <button class="btn-cancel" id="logsClear" style="padding:6px 12px;flex:none;font-size:.72rem" title="Limpar"><i class="ti ti-trash"></i> Limpar</button>
+    </div>
+    <div class="log-area" id="logArea"></div>
+    <div class="modal-actions">
+      <button class="btn-confirm" id="logsClose"><i class="ti ti-x"></i> Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://sdk.f5hlive.com.br/pusher/8.5.0/pusher.min.js"></script>
+<script>
+
+const $ = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
+
+const pusherKey = '11215d6822a0854b4550';
+const pusherCluster = 'custom';
+const chatChannelName = 'my-channel';
+const chatEvent = 'my-event';
+const clientChatEvent = 'client-my-event';
+
+let peerConnection = null;
+let wsConnection = null;
+let isViewing = false;
+let selectedLayer = 'auto';
+let statsInterval = null;
+let webrtcStatsTimer = null;
+let webrtcStatsKey = null;
+let logsAutoscroll = true;
+let channel = null;
+let chatOpen = false;
+let chatUnread = 0;
+
+const config = {
+    serverHost: 'director-ca.f5hlive.com.br',
+    accountId: 'a3RD6P',
+    streamName: 'test123'
+};
+
+function getServerUrl() {
+    const host = (config.serverHost || '').trim();
+    if (!host) {
+
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            return `${location.protocol}//${location.hostname}:443`;
+        }
+        return 'https://director-ca.f5hlive.com.br';
+    }
+
+    if (host.startsWith('http://') || host.startsWith('https://')) return host;
+
+    return `https://${host}`;
+}
+let SERVER_URL = getServerUrl();
+
+function getStatsApiBase() {
+    return getServerUrl() + '/api/webrtc/stats';
+}
+let STATS_API_BASE = getStatsApiBase();
+
+const LOG_BUFFER_MAX = 500;
+const logBuffer = [];
+
+function log(msg, level = 'info') {
+    const ts = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    const entry = { ts, msg, level };
+    logBuffer.push(entry);
+    if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+    const line = document.createElement('div');
+    line.className = `log-line ${level}`;
+    line.innerHTML = `<span class="ts">[${ts}]</span>${escapeHtml(msg)}`;
+    const area = $('logArea');
+    area.appendChild(line);
+    while (area.children.length > LOG_BUFFER_MAX) area.removeChild(area.firstChild);
+    if (logsAutoscroll) area.scrollTop = area.scrollHeight;
+    $('logsCount').textContent = `${logBuffer.length} linhas`;
+    if (level === 'err') console.error(msg);
+    else if (level === 'warn') console.warn(msg);
+    else console.log('[INFO]', msg);
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let toastTimer = null;
+function showToast(msg, type = '') {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast visible' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+function setViewStatus(isOnline) {
+    const b = $('viewStatusBadge');
+    if (isOnline) { b.classList.add('on'); b.textContent = 'ON'; }
+    else { b.classList.remove('on'); b.textContent = 'OFFLINE'; }
+}
+
+// ============================================================
+// PUSHER CHAT
+// ============================================================
+function initPusherChat() {
+    log('Inicializando Pusher Chat...');
+    try {
+        const pusher = new Pusher(pusherKey, {
+            cluster: pusherCluster
+        });
+        pusher.connection.bind('connected', () => {
+            log('Pusher: Conectado', 'ok');
+            $('chatStatusDot').classList.add('online');
+            addMessage('Sistema', 'Chat conectado com sucesso.', false);
+        });
+        pusher.connection.bind('error', (err) => {
+            log(`Pusher Error: ${err.error || 'desconhecido'}`, 'err');
+            $('chatStatusDot').classList.remove('online');
+        });
+        channel = pusher.subscribe(chatChannelName);
+        channel.bind(chatEvent, (data) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            addMessage(parsed.user || 'Visitante', parsed.message || '', false);
+        });
+        channel.bind(clientChatEvent, (data) => {
+            const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+            addMessage(parsed.user || 'Viewer', parsed.message || '', true);
+        });
+    } catch (e) {
+        log(`Pusher init falhou: ${e.message}`, 'warn');
+    }
+}
+
+function addMessage(user, text, isMe = false) {
+    const div = document.createElement('div');
+    div.className = `msg ${isMe ? 'me' : 'other'}`;
+    div.innerHTML = `<span class="user">${escapeHtml(user)}</span>${escapeHtml(text)}`;
+    $('chatContainer').appendChild(div);
+    $('chatContainer').scrollTop = $('chatContainer').scrollHeight;
+    if (!chatOpen && !isMe) {
+        chatUnread++;
+        const c = $('chatCount');
+        c.textContent = chatUnread;
+        c.style.display = 'flex';
+    }
+}
+
+function handleSend() {
+    const text = $('chatInput').value.trim();
+    if (text && channel) {
+        channel.trigger(clientChatEvent, { user: 'Viewer (Você)', message: text });
+        $('chatInput').value = '';
+    }
+}
+
+function toggleChat(open) {
+    chatOpen = open;
+    $('chatSidebar').classList.toggle('open', open);
+    if (open) {
+        chatUnread = 0;
+        $('chatCount').style.display = 'none';
+    }
+}
+
+// ============================================================
+// STATS POLLING (server-authoritative via /api/webrtc/stats)
+// ============================================================
+function buildStatsUrl(accountId, streamName) {
+    const params = new URLSearchParams();
+    if (accountId) params.set('accountId', accountId);
+    if (streamName) params.set('streamName', streamName);
+    const qs = params.toString();
+    return qs ? `${STATS_API_BASE}?${qs}` : STATS_API_BASE;
+}
+
+async function fetchWebRTCStats() {
+    if (!webrtcStatsKey) return null;
+    const url = buildStatsUrl(webrtcStatsKey.accountId, webrtcStatsKey.streamName);
+    try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 4000);
+        const r = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+        clearTimeout(to);
+        if (!r.ok) return null;
+        return await r.json();
+    } catch (e) { return null; }
+}
+
+function updateStatsUI(data) {
+    let viewCount = '—', publishCount = '—', viewStatus = '—', isOn = false;
+    try {
+        if (data && typeof data === 'object') {
+            if (typeof data.publishCount === 'number') publishCount = data.publishCount;
+            const vs = String(data.viewStatus || '').toLowerCase();
+            if (vs === 'on' || vs === 'live') { viewStatus = 'ON'; isOn = true; }
+            else if (vs === 'off' || vs === 'down') viewStatus = 'OFF';
+            const streams = data.streams || (data.data && data.data.streams) || [];
+            if (Array.isArray(streams) && streams.length > 0) {
+                const match = streams.find(s => s &&
+                    String(s.accountId) === String(webrtcStatsKey.accountId) &&
+                    String(s.streamName) === String(webrtcStatsKey.streamName));
+                const s = match || streams[0];
+                if (s) {
+                    if (s.viewCount != null) viewCount = s.viewCount;
+                    else if (s.viewers != null) viewCount = s.viewers;
+                    if (s.viewStatus) {
+                        const m = String(s.viewStatus).toLowerCase();
+                        if (m === 'on' || m === 'live') { viewStatus = 'ON'; isOn = true; }
+                        else if (m === 'off' || m === 'down') viewStatus = 'OFF';
+                    }
+                }
+            } else if (typeof data.totalViewers === 'number') {
+                viewCount = data.totalViewers;
+            }
+        }
+    } catch (_) {}
+    $('statsPill').classList.add('visible');
+    $('statViewCount').textContent = viewCount;
+    $('statPubCount').textContent = publishCount;
+    const vStat = $('statViewStatus');
+    vStat.classList.remove('on', 'off');
+    const vStrong = vStat.querySelector('strong');
+    const vIcon = vStat.querySelector('i');
+    if (isOn) { vStat.classList.add('on'); vStrong.textContent = 'ON'; vIcon.className = 'ti ti-bolt'; }
+    else if (viewStatus === 'OFF') { vStat.classList.add('off'); vStrong.textContent = 'OFF'; vIcon.className = 'ti ti-bolt-off'; }
+    else { vStrong.textContent = viewStatus; vIcon.className = 'ti ti-bolt-off'; }
+}
+
+function showStatsError() {
+    $('statViewCount').textContent = '—';
+    $('statPubCount').textContent = '—';
+    const vStat = $('statViewStatus');
+    vStat.classList.remove('on', 'off');
+    vStat.querySelector('strong').textContent = '—';
+    vStat.querySelector('i').className = 'ti ti-bolt-off';
+}
+
+async function pollStatsOnce() {
+    const data = await fetchWebRTCStats();
+    if (data) updateStatsUI(data);
+    else showStatsError();
+}
+
+function startStatsPolling(accountId, streamName) {
+    if (!accountId || !streamName) return;
+    if (webrtcStatsTimer && webrtcStatsKey &&
+        webrtcStatsKey.accountId === accountId &&
+        webrtcStatsKey.streamName === streamName) return;
+    stopStatsPolling();
+    webrtcStatsKey = { accountId, streamName };
+    $('statsPill').classList.add('visible');
+    pollStatsOnce();
+    webrtcStatsTimer = setInterval(pollStatsOnce, 3000);
+    log(`Stats polling ativo: ${STATS_API_BASE}`, 'info');
+}
+
+function stopStatsPolling() {
+    if (webrtcStatsTimer) { clearInterval(webrtcStatsTimer); webrtcStatsTimer = null; }
+    webrtcStatsKey = null;
+    $('statsPill').classList.remove('visible');
+    showStatsError();
+}
+
+// ============================================================
+// LAYER SELECTOR
+// ============================================================
+$$('.layer-item').forEach(item => {
+    item.addEventListener('click', () => {
+        $$('.layer-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        selectedLayer = item.dataset.v;
+        const label = item.firstChild.textContent.trim();
+        $('layerLabel').textContent = label;
+        $('layerTag').textContent = selectedLayer.toUpperCase();
+        $('layerMenu').classList.remove('open');
+        log(`Camada selecionada: ${selectedLayer}`);
+        applyLayerCap();
+    });
+});
+$('btnLayer').addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('layerMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => $('layerMenu').classList.remove('open'));
+
+function detectNetworkType() {
+    if (navigator.connection) {
+        const ct = navigator.connection.effectiveType;
+        if (ct === 'slow-2g' || ct === '2g' || ct === '3g') return 'low';
+        if (ct === '4g') return 'mid';
+        return 'high';
+    }
+    return 'mid';
+}
+
+function applyLayerCap() {
+    if (!peerConnection) return;
+    log(`Camada ${selectedLayer}: navegador adapta via congestion control`);
+}
+
+// ============================================================
+// CONNECT / DISCONNECT
+// ============================================================
+async function connectStream() {
+    if (isViewing) return;
+    const accountId = config.accountId.trim();
+    const streamName = config.streamName.trim();
+    if (!accountId || !streamName) {
+        showToast('Preencha Account ID e Stream Name', 'err');
+        openSettings();
+        return;
+    }
+
+    $('offlineOverlay').classList.add('hidden');
+    $('statusOverlay').classList.remove('hidden');
+    $('statusTitle').textContent = 'Conectando...';
+    $('statusSub').textContent = 'Autenticando com servidor de mídia...';
+    $('btnWatch').disabled = true;
+
+    try {
+        log(`SERVER_URL: ${SERVER_URL}`);
+        log(`Account: ${accountId} | Stream: ${streamName}`);
+        const response = await fetch(`${SERVER_URL}/api/director/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ streamAccountId: accountId, streamName })
+        });
+        if (!response.ok) throw new Error(`Servidor indisponível (${response.status})`);
+        const data = await response.json();
+        log('Resposta do servidor recebida', 'ok');
+
+        let wsUrl = null;
+        const jwt = data.jwt || data.data?.jwt;
+        const urls = data.data?.urls || data.urls;
+        if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+        else if (typeof urls === 'string') wsUrl = urls;
+        else if (data.url) wsUrl = data.url;
+        else if (data.data?.url) wsUrl = data.data.url;
+        if (!wsUrl) throw new Error('URL de stream não encontrada');
+        if (wsUrl.startsWith('http')) wsUrl = wsUrl.replace('http', 'ws');
+        if (jwt) wsUrl += (wsUrl.includes('?') ? '&' : '?') + 'token=' + jwt;
+        log(`Conectando WS: ${wsUrl.substring(0, 50)}...`);
+
+        $('statusSub').textContent = 'Estabelecendo WebRTC...';
+        wsConnection = new WebSocket(wsUrl);
+
+        wsConnection.onopen = () => {
+            log('WebSocket aberto. Criando PeerConnection...', 'ok');
+            startStatsPolling(accountId, streamName);
+            peerConnection = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            peerConnection.addTransceiver('video', { direction: 'recvonly' });
+            peerConnection.addTransceiver('audio', { direction: 'recvonly' });
+
+            peerConnection.ontrack = (event) => {
+                log(`Track recebida: ${event.track.kind}`, 'ok');
+                $('video').srcObject = event.streams[0];
+                $('video').muted = false;
+                $('video').play().catch(e => log(`Auto-play bloqueado: ${e.message}`, 'warn'));
+                $('statusOverlay').classList.add('hidden');
+                $('controls').classList.remove('hidden');
+                $('btnWatch').disabled = true;
+                $('btnWatch').classList.add('live');
+                $('btnWatch').innerHTML = '<i class="ti ti-player-play-filled"></i>';
+                $('btnDisconnect').disabled = false;
+                $('infoPanel').classList.add('visible');
+                isViewing = true;
+                setViewStatus(true);
+                log('Mídia fluindo! Adaptação automática ativa.', 'ok');
+                startStatsMonitoring();
+            };
+            peerConnection.oniceconnectionstatechange = () => log(`ICE state: ${peerConnection.iceConnectionState}`);
+            peerConnection.onconnectionstatechange = () => {
+                const st = peerConnection.connectionState;
+                log(`PC state: ${st}`);
+                if (st === 'connected') setViewStatus(true);
+                else if (st === 'disconnected' || st === 'failed' || st === 'closed') setViewStatus(false);
+            };
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    try { wsConnection.send(JSON.stringify({ type: 'candidate', candidate: e.candidate })); } catch (err) {}
+                }
+            };
+
+            peerConnection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+                .then(offer => peerConnection.setLocalDescription(offer))
+                .then(() => {
+                    log('Enviando Offer SDP (view)...');
+                    wsConnection.send(JSON.stringify({
+                        type: 'cmd', transId: Date.now().toString(),
+                        name: 'view',
+                        data: { sdp: peerConnection.localDescription.sdp }
+                    }));
+                })
+                .catch(err => log(`Erro offer: ${err.message}`, 'err'));
+        };
+
+        wsConnection.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                let sdp = null;
+                if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+                else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+                if (sdp) {
+                    if (!sdp.trim()) {
+                        if (msg.data && msg.data.status === 'waiting') {
+                            log('Aguardando publisher iniciar...', 'warn');
+                            $('statusTitle').textContent = 'Aguardando...';
+                            $('statusSub').textContent = 'O publisher ainda não iniciou a stream';
+                        } else {
+                            log('ERRO: answer vazia do servidor', 'err');
+                            handleConnectFail('Answer vazia do servidor');
+                        }
+                        return;
+                    }
+                    log('Answer SDP recebida', 'ok');
+                    peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }))
+                        .then(() => log('setRemoteDescription OK', 'ok'))
+                        .catch(err => log(`ERRO setRemoteDescription: ${err.message}`, 'err'));
+                    return;
+                }
+                if (msg.type === 'event' && msg.name === 'active') log('Evento active recebido', 'ok');
+                else if (msg.type === 'event' && msg.name === 'inactive') log('Evento inactive recebido', 'warn');
+                else if (msg.type === 'error') {
+                    log(`ERRO servidor: ${msg.message || JSON.stringify(msg)}`, 'err');
+                    handleConnectFail(msg.message || 'Erro do servidor');
+                }
+            } catch (err) { log(`Erro parse WS: ${err.message}`, 'err'); }
+        };
+        wsConnection.onerror = () => log('Erro WebSocket', 'err');
+        wsConnection.onclose = () => log('WebSocket fechado', 'warn');
+
+        setTimeout(() => {
+            if (!isViewing) {
+                log('Timeout: stream não conectou em 15s', 'warn');
+                handleConnectFail('Timeout (15s)');
+            }
+        }, 15000);
+    } catch (err) {
+        log(`FALHA: ${err.message}`, 'err');
+        handleConnectFail(err.message);
+    }
+}
+
+function handleConnectFail(reason) {
+    $('statusOverlay').classList.add('hidden');
+    $('offlineOverlay').classList.remove('hidden');
+    $('btnWatch').disabled = false;
+    $('btnWatch').classList.remove('live');
+    $('btnWatch').innerHTML = '<i class="ti ti-player-play-filled"></i>';
+    $('btnDisconnect').disabled = true;
+    isViewing = false;
+    setViewStatus(false);
+    showToast('Falha: ' + reason, 'err');
+}
+
+function disconnectStream() {
+    stopStatsPolling();
+    if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+    if (wsConnection) { try { wsConnection.close(); } catch(e){} wsConnection = null; }
+    if (peerConnection) { try { peerConnection.close(); } catch(e){} peerConnection = null; }
+    $('video').srcObject = null;
+    isViewing = false;
+    setViewStatus(false);
+    $('btnWatch').disabled = false;
+    $('btnWatch').classList.remove('live');
+    $('btnWatch').innerHTML = '<i class="ti ti-player-play-filled"></i>';
+    $('btnDisconnect').disabled = true;
+    $('controls').classList.add('hidden');
+    $('offlineOverlay').classList.remove('hidden');
+    $('infoPanel').classList.remove('visible');
+    ['ipBitrate','ipRes','ipFps','ipLayer'].forEach(id => $(id).textContent = '—');
+    log('Desconectado', 'warn');
+    showToast('Desconectado');
+}
+
+// ============================================================
+// STATS MONITORING (bitrate/res/fps local)
+// ============================================================
+let lastBytes = 0, lastTime = 0, currentLayer = 1;
+function startStatsMonitoring() {
+    if (statsInterval) clearInterval(statsInterval);
+    lastBytes = 0; lastTime = 0; currentLayer = 1;
+    statsInterval = setInterval(async () => {
+        if (!peerConnection) return;
+        try {
+            const stats = await peerConnection.getStats();
+            let videoBitrate = 0, videoRes = '', videoFps = 0, bytesNow = 0, hasVideo = false;
+
+            stats.forEach(report => {
+                if (report.type === 'inbound-rtp' && report.kind === 'video' && !hasVideo) {
+                    hasVideo = true;
+                    bytesNow = report.bytesReceived || 0;
+                    videoFps = report.framesPerSecond || 0;
+                    if (report.frameWidth && report.frameHeight) {
+                        videoRes = `${report.frameWidth}x${report.frameHeight}`;
+                    }
+                }
+            });
+
+            const now = Date.now();
+            if (hasVideo && lastTime > 0 && lastBytes > 0) {
+                const dt = (now - lastTime) / 1000;
+                if (dt > 0) {
+                    const deltaBytes = bytesNow - lastBytes;
+                    if (deltaBytes > 0) {
+
+                        videoBitrate = Math.round(deltaBytes * 8 / 1000 / dt);
+
+                        if (videoBitrate > 10000) videoBitrate = 0;
+                    }
+                }
+            }
+            if (hasVideo) {
+                lastBytes = bytesNow;
+                lastTime = now;
+            }
+            $('ipBitrate').textContent = videoBitrate > 0 ? `${videoBitrate} kbps` : '—';
+            $('ipRes').textContent = videoRes || '—';
+            $('ipFps').textContent = videoFps > 0 ? `${videoFps} fps` : '—';
+
+            let detected = 'mid';
+            if (videoBitrate > 0) {
+                if (videoBitrate <= 300) detected = 'low';
+                else if (videoBitrate <= 1000) detected = 'mid';
+                else detected = 'high';
+                const layerMap = { low: 0, mid: 1, high: 2 };
+                if (currentLayer !== layerMap[detected]) {
+                    currentLayer = layerMap[detected];
+                    log(`Switch -> ${detected.toUpperCase()} (${videoBitrate} kbps)`, 'info');
+                }
+            }
+            if (selectedLayer === 'auto') {
+                $('ipLayer').textContent = detected.toUpperCase();
+                $('layerTag').textContent = `AUTO (${detected.toUpperCase()})`;
+            } else {
+                $('ipLayer').textContent = selectedLayer.toUpperCase();
+            }
+        } catch (e) {}
+    }, 2000);
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+$('btnWatch').addEventListener('click', () => { if (!isViewing) connectStream(); });
+$('btnDisconnect').addEventListener('click', disconnectStream);
+$('btnConfigOffline').addEventListener('click', openSettings);
+$('btnPlayOffline').addEventListener('click', () => { if (!isViewing) connectStream(); });
+$('btnFs').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+});
+
+// Chat
+$('btnChat').addEventListener('click', () => toggleChat(true));
+$('chatToggle').addEventListener('click', () => toggleChat(true));
+$('chatClose').addEventListener('click', () => toggleChat(false));
+$('sendChat').addEventListener('click', handleSend);
+$('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+
+function openSettings() {
+    $('mServerHost').value = config.serverHost;
+    $('mAccountId').value = config.accountId;
+    $('mStreamName').value = config.streamName;
+    $('urlHint').textContent = `${getServerUrl()}/api/director/subscribe`;
+    $('settingsModalBg').classList.add('visible');
+}
+$('btnSettings').addEventListener('click', openSettings);
+$('settingsCancel').addEventListener('click', () => $('settingsModalBg').classList.remove('visible'));
+$('settingsSave').addEventListener('click', () => {
+    config.serverHost = $('mServerHost').value.trim() || config.serverHost;
+    config.accountId = $('mAccountId').value.trim() || config.accountId;
+    config.streamName = $('mStreamName').value.trim() || config.streamName;
+    SERVER_URL = getServerUrl(); // reconstrói SERVER_URL com novo host
+    STATS_API_BASE = getStatsApiBase(); // reconstrói STATS_API_BASE com novo host
+    $('settingsModalBg').classList.remove('visible');
+    showToast('Configurações salvas', 'ok');
+    if (!isViewing) {
+        $('offlineMsg').innerHTML = `Conta <strong>${config.accountId}</strong> · Stream <strong>${config.streamName}</strong>`;
+    }
+});
+$('settingsModalBg').addEventListener('click', e => { if (e.target === $('settingsModalBg')) $('settingsModalBg').classList.remove('visible'); });
+
+// Logs modal
+$('btnLogs').addEventListener('click', () => {
+    $('logsModalBg').classList.add('visible');
+    if (logsAutoscroll) $('logArea').scrollTop = $('logArea').scrollHeight;
+});
+$('logsClose').addEventListener('click', () => $('logsModalBg').classList.remove('visible'));
+$('logsModalBg').addEventListener('click', e => { if (e.target === $('logsModalBg')) $('logsModalBg').classList.remove('visible'); });
+$('logsAutoscroll').addEventListener('click', () => {
+    logsAutoscroll = !logsAutoscroll;
+    $('logsAutoscroll').style.color = logsAutoscroll ? 'var(--success)' : '';
+    if (logsAutoscroll) $('logArea').scrollTop = $('logArea').scrollHeight;
+});
+$('logsClear').addEventListener('click', () => {
+    logBuffer.length = 0;
+    $('logArea').innerHTML = '';
+    $('logsCount').textContent = '0 linhas';
+    log('Logs limpos', 'info');
+});
+$('logsCopy').addEventListener('click', async () => {
+    const txt = logBuffer.map(l => `[${l.ts}] ${l.msg}`).join('\n');
+    try { await navigator.clipboard.writeText(txt); showToast('Logs copiados', 'ok'); }
+    catch (e) { showToast('Erro ao copiar', 'err'); }
+});
+
+// INIT
+window.onload = () => {
+    setViewStatus(false);
+    initPusherChat();
+    log('=== LIVE VIEW SIMULCAST ===', 'ok');
+    log(`SERVER_URL: ${SERVER_URL}`);
+    log(`STATS_API: ${STATS_API_BASE}`);
+    log('Adaptação: navegador GCC/TWCC');
+    log('Sistema pronto. Configure Account ID + Stream Name e clique ASSISTIR.');
+    if (navigator.connection) {
+        const ct = navigator.connection.effectiveType;
+        log(`Rede inicial: ${ct}`);
+        navigator.connection.addEventListener('change', () => log(`Rede mudou: ${navigator.connection.effectiveType}`));
+    }
+};
+</script>
+</body>
+</html>

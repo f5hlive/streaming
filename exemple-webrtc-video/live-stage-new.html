@@ -1,0 +1,3223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Cache busting: STAGE v2.0 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <title>Stage Live — Palco + Plateia v2.0</title>
+    <style>
+        :root {
+            --bg-body: #09090b;
+            --bg-card: #18181b;
+            --bg-input: #27272a;
+            --text-main: #fafafa;
+            --text-muted: #a1a1aa;
+            /* Tema EMERALD (mesmo do multi-call) */
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --primary-light: #34d399;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --gold: #fbbf24;
+        }
+        * { box-sizing: border-box; outline: none; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ============ LOGIN OVERLAY ============ */
+        #loginOverlay {
+            position: fixed; inset: 0;
+            background: radial-gradient(ellipse at center, #0a1f17 0%, #000 70%);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 480px; width: 100%;
+            box-shadow: 0 0 40px rgba(16,185,129,0.2);
+        }
+        .login-card h1 {
+            font-size: 1.5rem; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .login-card .subtitle {
+            font-size: 0.8rem; color: var(--text-muted); margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        .login-badge {
+            display: inline-block; font-size: 0.7rem; font-family: monospace;
+            padding: 3px 8px; border-radius: 4px;
+            background: rgba(16,185,129,0.2); color: var(--primary-light);
+            border: 1px solid rgba(16,185,129,0.4); margin-bottom: 16px;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block; font-size: 0.75rem; font-weight: 600;
+            color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-input {
+            width: 100%; padding: 10px 12px;
+            background: var(--bg-input); border: 1px solid #3f3f46;
+            border-radius: 8px; color: var(--text-main);
+            font-size: 0.9rem; font-family: monospace;
+            transition: border-color 0.15s;
+        }
+        .form-input:focus { border-color: var(--primary); }
+        .form-row { display: flex; gap: 12px; }
+        .form-row > * { flex: 1; }
+
+        /* Role selector */
+        .role-selector { display: flex; gap: 12px; margin-bottom: 20px; }
+        .role-btn {
+            flex: 1; display: flex; align-items: center; gap: 10px;
+            padding: 14px; background: var(--bg-input);
+            border: 2px solid #3f3f46; border-radius: 10px;
+            color: var(--text-main); cursor: pointer;
+            transition: all 0.15s; text-align: left;
+            font-family: inherit;
+        }
+        .role-btn:hover { border-color: var(--primary); }
+        .role-btn.active {
+            border-color: var(--primary);
+            background: rgba(16,185,129,0.1);
+        }
+        .role-btn > i {
+            font-size: 1.5rem; color: var(--primary); flex-shrink: 0;
+        }
+        .role-btn .role-title { font-size: 0.95rem; font-weight: 700; }
+        .role-btn .role-desc { font-size: 0.7rem; color: var(--text-muted); }
+
+        .toggle-group { display: flex; gap: 12px; margin-bottom: 20px; }
+        .toggle-item {
+            flex: 1; display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px; background: var(--bg-input);
+            border: 1px solid #3f3f46; border-radius: 8px;
+            cursor: pointer; font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .toggle-item:hover { border-color: var(--primary); }
+        .toggle-item input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer;
+        }
+        .toggle-item label { cursor: pointer; font-size: 0.85rem; }
+
+        .btn-join {
+            width: 100%; padding: 14px;
+            background: var(--primary); color: #000;
+            border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 700;
+            cursor: pointer; transition: background 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-join:hover:not(:disabled) { background: var(--primary-hover); color: #fff; }
+        .btn-join:disabled { opacity: 0.5; cursor: not-allowed; }
+        .login-error {
+            margin-top: 12px; padding: 10px;
+            background: rgba(239,68,68,0.1); border: 1px solid var(--danger);
+            border-radius: 8px; font-size: 0.8rem; color: #fca5a5;
+            display: none;
+        }
+        .login-error.show { display: block; }
+
+        /* ============ MAIN APP ============ */
+        #app { display: none; flex: 1; flex-direction: column; height: 100vh; overflow: hidden; }
+        #app.active { display: flex; }
+
+        /* Header */
+        .app-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px; background: var(--bg-card);
+            border-bottom: 1px solid #27272a; flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-badge {
+            font-size: 0.65rem; font-family: monospace;
+            padding: 3px 8px; border-radius: 4px;
+            background: rgba(16,185,129,0.2); color: var(--primary-light);
+            border: 1px solid rgba(16,185,129,0.4);
+            margin-left: 6px;
+        }
+        .header-title { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .header-room { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .participant-count {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.8rem; color: var(--text-muted);
+            padding: 4px 10px; background: var(--bg-input); border-radius: 20px;
+        }
+        .participant-count .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--danger); animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* Main area: stage area + sidebar */
+        .main-area {
+            flex: 1; display: flex; overflow: hidden;
+        }
+
+        /* Stage area */
+        .stage-area {
+            flex: 1; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .stage-grid {
+            flex: 1; display: grid; gap: 10px; padding: 12px;
+            overflow: auto; align-content: center;
+            transition: all 0.3s;
+        }
+        .stage-grid.layout-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+        .stage-grid.layout-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+        .stage-grid.layout-3, .stage-grid.layout-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+        .stage-empty {
+            grid-column: 1 / -1;
+            text-align: center; color: var(--text-muted);
+            padding: 60px 20px;
+            display: flex; flex-direction: column; align-items: center; gap: 12px;
+        }
+        .stage-empty i { font-size: 3rem; color: var(--bg-input); }
+        .stage-empty div { font-size: 0.95rem; }
+
+        /* Participant tile */
+        .tile {
+            position: relative; background: #000;
+            border-radius: 10px; overflow: hidden;
+            border: 2px solid transparent;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 200px;
+        }
+        .tile.speaking { border-color: var(--primary); box-shadow: 0 0 12px rgba(16,185,129,0.5); }
+        .tile video {
+            width: 100%; height: 100%; object-fit: cover;
+            transform: scaleX(1); /* no mirror for remote */
+        }
+        .tile.self video { transform: scaleX(-1); /* mirror for self */ }
+        .tile audio { display: none; }
+        .tile-placeholder {
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            color: var(--text-muted); font-size: 0.8rem;
+        }
+        .tile-placeholder .avatar {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: var(--bg-input); display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; font-weight: 700; color: var(--primary-light);
+        }
+        .tile-info {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
+            font-size: 0.8rem; pointer-events: none;
+        }
+        .tile-name { font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px; }
+        .tile-indicators { display: flex; gap: 6px; }
+        .indicator {
+            width: 20px; height: 20px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem;
+        }
+        .indicator.mic-off { background: rgba(239,68,68,0.9); color: #fff; }
+        .indicator.cam-off { background: rgba(239,68,68,0.9); color: #fff; }
+        .indicator.quality { background: rgba(0,0,0,0.6); color: var(--success); font-family: monospace; font-size: 0.65rem; }
+        .indicator.quality.warn { color: var(--warning); }
+        .indicator.quality.bad { color: var(--danger); }
+        .tile-waiting {
+            position: absolute; top: 8px; right: 8px;
+            font-size: 0.65rem; padding: 2px 6px; border-radius: 4px;
+            background: rgba(245,158,11,0.9); color: #000; font-weight: 600;
+            z-index: 6;
+        }
+
+        /* Tile role badge (HOST / CONVIDADO) */
+        .tile-badge {
+            position: absolute; top: 8px; left: 8px;
+            font-size: 0.6rem; padding: 3px 8px;
+            border-radius: 4px; font-weight: 700;
+            letter-spacing: 0.5px; z-index: 5;
+        }
+        .tile-badge.host { background: rgba(251,191,36,0.95); color: #000; }
+        .tile-badge.guest { background: rgba(16,185,129,0.95); color: #000; }
+
+        /* Tile kick button (host → guest) */
+        .tile-kick-btn {
+            position: absolute; top: 8px; right: 8px;
+            padding: 5px 10px; background: rgba(239,68,68,0.92);
+            color: #fff; border: none; border-radius: 6px;
+            font-size: 0.72rem; font-weight: 600; cursor: pointer;
+            display: none; z-index: 6;
+            font-family: inherit;
+        }
+        .tile:hover .tile-kick-btn { display: block; }
+        .tile-kick-btn:hover { background: var(--danger); }
+
+        /* Tile leave button (guest self — Descer do Palco) */
+        .tile-leave-btn {
+            position: absolute; top: 8px; right: 8px;
+            padding: 6px 12px; background: rgba(234,88,12,0.95);
+            color: #fff; border: none; border-radius: 6px;
+            font-size: 0.72rem; font-weight: 700; cursor: pointer;
+            z-index: 6; font-family: inherit;
+            display: flex; align-items: center; gap: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            transition: background 0.2s, transform 0.15s;
+        }
+        .tile-leave-btn:hover { background: rgba(234,88,12,1); transform: translateY(-1px); }
+        .tile-leave-btn:active { transform: translateY(0); }
+        @media (max-width: 768px) {
+            .tile-leave-btn { font-size: 0.62rem; padding: 4px 8px; top: 4px; right: 4px; }
+        }
+
+        /* Audience strip */
+        .audience-strip-container {
+            flex-shrink: 0; padding: 8px 12px 10px 12px;
+            background: var(--bg-card);
+            border-top: 1px solid #27272a;
+        }
+        .strip-label {
+            font-size: 0.65rem; color: var(--text-muted);
+            margin-bottom: 6px; text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .strip-count {
+            color: var(--primary-light); font-weight: 700;
+            background: rgba(16,185,129,0.15); padding: 1px 6px;
+            border-radius: 8px; font-size: 0.62rem;
+        }
+        .audience-strip {
+            display: flex; gap: 8px; overflow-x: auto;
+            padding-bottom: 4px; min-height: 60px;
+            align-items: flex-start;
+        }
+        .audience-strip::-webkit-scrollbar { height: 5px; }
+        .audience-strip::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .audience-avatar {
+            position: relative; flex-shrink: 0;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 3px; padding: 4px; width: 56px;
+        }
+        .audience-avatar .avatar-circle {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: var(--bg-input); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 1rem; font-weight: 700; color: var(--primary-light);
+            border: 2px solid #3f3f46;
+        }
+        .audience-avatar .avatar-name {
+            font-size: 0.62rem; color: var(--text-muted);
+            max-width: 50px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        .invite-btn-overlay {
+            position: absolute; top: 0; right: 8px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: var(--primary); color: #000;
+            border: 2px solid var(--bg-card);
+            display: none; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 0.75rem; font-weight: 700;
+            line-height: 1;
+        }
+        .audience-avatar:hover .invite-btn-overlay { display: flex; }
+        .invite-btn-overlay:hover { background: var(--primary-hover); color: #fff; }
+        .strip-empty {
+            color: var(--text-muted); font-size: 0.75rem;
+            padding: 14px 8px; font-style: italic;
+        }
+
+        /* Sidebar with 3 tabs */
+        .sidebar {
+            width: 320px; background: var(--bg-card);
+            border-left: 1px solid #27272a;
+            display: flex; flex-direction: column;
+            transition: width 0.3s, opacity 0.3s;
+            flex-shrink: 0; position: relative;
+        }
+        .sidebar.hidden { width: 0; opacity: 0; overflow: hidden; border-left: none; }
+        .sidebar-close-btn {
+            display: none; position: absolute; top: 8px; right: 8px;
+            width: 28px; height: 28px; border-radius: 6px;
+            background: var(--bg-input); border: 1px solid #3f3f46;
+            color: var(--text-main); cursor: pointer;
+            align-items: center; justify-content: center; line-height: 1;
+            z-index: 10;
+        }
+        .sidebar-close-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .sidebar-tabs {
+            display: flex; border-bottom: 1px solid #27272a;
+            flex-shrink: 0;
+        }
+        .tab-btn {
+            flex: 1; padding: 10px 6px; background: transparent;
+            border: none; color: var(--text-muted);
+            font-size: 0.78rem; font-weight: 600; cursor: pointer;
+            transition: all 0.15s; border-bottom: 2px solid transparent;
+            font-family: inherit;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+        }
+        .tab-btn:hover { color: var(--text-main); }
+        .tab-btn.active {
+            color: var(--primary); border-bottom-color: var(--primary);
+        }
+        .sidebar-content {
+            flex: 1; overflow: hidden; position: relative;
+        }
+        .tab-panel {
+            display: none; flex-direction: column;
+            height: 100%;
+        }
+        .tab-panel.active { display: flex; }
+
+        /* Chat */
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 10px 14px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .chat-msg {
+            max-width: 85%; padding: 8px 12px; border-radius: 10px;
+            font-size: 0.85rem; word-wrap: break-word;
+        }
+        .chat-msg.other { background: var(--bg-input); align-self: flex-start; }
+        .chat-msg.self { background: var(--primary); color: #000; align-self: flex-end; }
+        .chat-msg.system { background: transparent; color: var(--text-muted); font-size: 0.75rem; font-style: italic; align-self: center; text-align: center; max-width: 100%; }
+        .chat-msg .from { font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; opacity: 0.8; }
+        .chat-msg .time { font-size: 0.65rem; opacity: 0.6; margin-top: 2px; }
+        .chat-input-area {
+            padding: 10px 14px; border-top: 1px solid #27272a;
+            display: flex; gap: 8px; flex-shrink: 0;
+        }
+        .chat-input {
+            flex: 1; padding: 8px 12px; background: var(--bg-input);
+            border: 1px solid #3f3f46; border-radius: 8px;
+            color: var(--text-main); font-size: 0.85rem;
+            font-family: inherit;
+        }
+        .chat-input:focus { border-color: var(--primary); }
+        .chat-send {
+            padding: 8px 14px; background: var(--primary); color: #000;
+            border: none; border-radius: 8px; font-weight: 600;
+            cursor: pointer; font-size: 0.85rem;
+        }
+        .chat-send:hover { background: var(--primary-hover); color: #fff; }
+        .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Roster list (Plateia / Palco tabs) */
+        .roster-list {
+            flex: 1; overflow-y: auto; padding: 10px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .roster-list::-webkit-scrollbar { width: 5px; }
+        .roster-list::-webkit-scrollbar-thumb { background: #3f3f46; }
+        .roster-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 10px; background: var(--bg-input);
+            border-radius: 8px;
+        }
+        .roster-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--bg-body); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 0.85rem; font-weight: 700; color: var(--primary-light);
+            flex-shrink: 0;
+        }
+        .roster-avatar.host { color: var(--gold); }
+        .roster-avatar.guest { color: var(--primary-light); }
+        .roster-name {
+            flex: 1; font-size: 0.85rem;
+            display: flex; align-items: center; gap: 6px;
+            flex-wrap: wrap; min-width: 0;
+        }
+        .roster-name-text {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .role-tag {
+            font-size: 0.6rem; padding: 1px 6px; border-radius: 4px;
+            font-weight: 700; letter-spacing: 0.3px;
+        }
+        .role-tag.host { background: rgba(251,191,36,0.2); color: var(--gold); }
+        .role-tag.guest { background: rgba(16,185,129,0.2); color: var(--primary-light); }
+        .roster-btn {
+            padding: 5px 10px; border: none; border-radius: 6px;
+            font-size: 0.72rem; font-weight: 600; cursor: pointer;
+            flex-shrink: 0; font-family: inherit;
+            white-space: nowrap;
+        }
+        .roster-btn.invite { background: var(--primary); color: #000; }
+        .roster-btn.invite:hover { background: var(--primary-hover); color: #fff; }
+        .roster-btn.kick { background: var(--danger); color: #fff; }
+        .roster-btn.kick:hover { background: #dc2626; }
+        .roster-btn.leave { background: var(--warning); color: #000; }
+        .roster-btn.leave:hover { background: #d97706; color: #fff; }
+        .roster-badge {
+            font-size: 0.62rem; color: var(--primary-light);
+            background: rgba(16,185,129,0.15); padding: 3px 6px;
+            border-radius: 4px; font-weight: 600;
+        }
+        .roster-empty {
+            text-align: center; padding: 30px 10px;
+            color: var(--text-muted); font-size: 0.85rem;
+            font-style: italic;
+        }
+
+        /* Controls bar */
+        .controls-bar {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            padding: 10px 16px; background: var(--bg-card);
+            border-top: 1px solid #27272a; flex-shrink: 0;
+        }
+        .ctrl-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 14px; background: var(--bg-input);
+            border: 1px solid #3f3f46; border-radius: 8px;
+            color: var(--text-main); font-size: 0.85rem; font-weight: 500;
+            cursor: pointer; transition: all 0.15s;
+            font-family: inherit;
+        }
+        .ctrl-btn:hover { border-color: var(--primary); background: #2a2a2e; }
+        .ctrl-btn.active { background: var(--primary); color: #000; border-color: var(--primary); }
+        .ctrl-btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .ctrl-btn.danger:hover { background: #dc2626; }
+        .ctrl-btn.warning { background: var(--warning); color: #000; border-color: var(--warning); }
+        .ctrl-btn.warning:hover { background: #d97706; color: #fff; }
+        .ctrl-btn .icon { font-size: 1.1rem; }
+        .ctrl-btn.toggled-off { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .ctrl-btn.toggled-off .icon { filter: brightness(1.2); }
+        .ctrl-btn.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+        /* Logs panel */
+        .logs-toggle {
+            position: fixed; bottom: 80px; right: 20px;
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--bg-card); border: 1px solid #3f3f46;
+            color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; z-index: 100;
+            transition: all 0.15s;
+        }
+        .logs-toggle:hover { border-color: var(--primary); color: var(--primary); }
+        .logs-panel {
+            position: fixed; bottom: 130px; right: 20px;
+            width: 420px; max-height: 300px;
+            background: var(--bg-card); border: 1px solid #3f3f46;
+            border-radius: 10px; overflow: hidden;
+            display: none; flex-direction: column; z-index: 100;
+        }
+        .logs-panel.show { display: flex; }
+        .logs-header {
+            padding: 8px 12px; border-bottom: 1px solid #27272a;
+            font-size: 0.8rem; font-weight: 600;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .logs-clear { cursor: pointer; color: var(--text-muted); font-size: 0.75rem; }
+        .logs-clear:hover { color: var(--danger); }
+        .logs-content {
+            flex: 1; overflow-y: auto; padding: 8px 12px;
+            font-family: monospace; font-size: 0.7rem; line-height: 1.5;
+        }
+        .logs-content::-webkit-scrollbar { width: 5px; }
+        .logs-content::-webkit-scrollbar-thumb { background: #3f3f46; }
+        .log-line { padding: 1px 0; }
+        .log-line.ok { color: var(--success); }
+        .log-line.warn { color: var(--warning); }
+        .log-line.err { color: #fca5a5; }
+        .log-line .ts { color: var(--text-muted); }
+
+        /* Toast */
+        .toast-container {
+            position: fixed; top: 60px; right: 20px; z-index: 200;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px; border-radius: 8px;
+            background: var(--bg-card); border: 1px solid var(--primary);
+            font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+        .toast.join { border-color: var(--success); }
+        .toast.leave { border-color: var(--danger); }
+        .toast.chat { border-color: var(--info); }
+        .toast.kick { border-color: var(--warning); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* Invite modal */
+        .invite-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 500; padding: 20px;
+            animation: fadeIn 0.2s;
+        }
+        .invite-card {
+            background: var(--bg-card);
+            border: 2px solid var(--warning);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 400px; width: 100%;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(245,158,11,0.3);
+        }
+        .invite-card .invite-icon {
+            font-size: 3rem; color: var(--warning); margin-bottom: 12px;
+        }
+        .invite-card h2 {
+            font-size: 1.3rem; margin-bottom: 8px;
+        }
+        .invite-card p {
+            color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;
+        }
+        .invite-card p strong { color: var(--warning); }
+        .invite-buttons {
+            display: flex; gap: 12px;
+        }
+        .invite-btn {
+            flex: 1; padding: 12px; border: none; border-radius: 8px;
+            font-size: 0.95rem; font-weight: 700; cursor: pointer;
+            font-family: inherit;
+        }
+        .invite-btn.accept { background: var(--primary); color: #000; }
+        .invite-btn.accept:hover { background: var(--primary-hover); color: #fff; }
+        .invite-btn.decline { background: var(--danger); color: #fff; }
+        .invite-btn.decline:hover { background: #dc2626; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .login-card { padding: 20px 16px; margin: 12px; max-width: 100%; }
+            .login-card h1 { font-size: 1.4rem; }
+            .login-card .subtitle { font-size: 0.78rem; }
+            .role-selector { flex-direction: column; gap: 8px; }
+            .role-btn { padding: 12px; }
+            .form-row { grid-template-columns: 1fr; flex-direction: column; gap: 0; }
+            .toggle-group { flex-direction: column; }
+            .app-header { padding: 8px 12px; }
+            .header-title { font-size: 0.85rem; }
+            .header-room { font-size: 0.62rem; }
+            .participant-count { font-size: 0.7rem; padding: 3px 8px; }
+            .header-badge { display: none; }
+
+            /* Stage grid on mobile */
+            .stage-grid { gap: 6px; padding: 6px; }
+            .stage-grid.layout-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+            .stage-grid.layout-3, .stage-grid.layout-4 {
+                grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+            }
+            .tile { min-height: 140px; border-radius: 8px; }
+            .tile-info { padding: 6px 8px; font-size: 0.7rem; }
+            .tile-name { font-size: 0.72rem; }
+            .tile-placeholder .avatar { width: 44px; height: 44px; font-size: 1.1rem; }
+            .tile-waiting { font-size: 0.55rem; padding: 1px 5px; top: 4px; right: 4px; }
+            .tile-badge { font-size: 0.55rem; padding: 2px 6px; top: 4px; left: 4px; }
+            .tile-kick-btn { font-size: 0.62rem; padding: 3px 6px; top: 4px; right: 4px; }
+            .indicator { width: 16px; height: 16px; font-size: 0.6rem; }
+
+            /* Sidebar: full overlay on mobile */
+            .sidebar {
+                position: fixed; right: 0; top: 0; bottom: 0;
+                width: 100%; max-width: 100%; z-index: 100;
+                box-shadow: -4px 0 24px rgba(0,0,0,0.6);
+            }
+            .sidebar.hidden { width: 0; max-width: 0; border: none; opacity: 0; pointer-events: none; }
+            .sidebar:not(.hidden) .sidebar-close-btn { display: flex; }
+            .sidebar-tabs { padding-right: 36px; }
+
+            /* Controls bar: fixed at bottom, circular icon-only */
+            .controls-bar {
+                position: fixed; left: 0; right: 0; bottom: 0;
+                padding: 8px 12px;
+                padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+                gap: 8px; justify-content: space-around;
+                background: rgba(24,24,27,0.96);
+                backdrop-filter: blur(10px);
+                border-top: 1px solid #27272a;
+                z-index: 90;
+            }
+            .ctrl-btn {
+                width: 52px; height: 52px; padding: 0;
+                border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+                flex-direction: column; gap: 0;
+            }
+            .ctrl-btn .icon { font-size: 1.4rem; }
+            .ctrl-btn span:not(.icon) { display: none; }
+            .ctrl-btn.btn-leave { width: 56px; height: 56px; }
+            .ctrl-btn.btn-leave .icon { font-size: 1.6rem; }
+            .ctrl-btn.toggled-off { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+            .stage-area { padding-bottom: 76px; }
+            .logs-panel { width: calc(100vw - 24px); right: 12px; max-height: 35vh; bottom: 76px; z-index: 80; }
+            .logs-toggle { bottom: 84px; right: 12px; z-index: 80; }
+            .toast { max-width: calc(100vw - 40px); font-size: 0.78rem; padding: 8px 12px; }
+            .toast-container { bottom: 84px; right: 12px; left: 12px; top: auto; }
+        }
+        @media (max-width: 480px) {
+            .login-card h1 { font-size: 1.2rem; }
+            .login-badge { font-size: 0.6rem; }
+            .header-title { font-size: 0.75rem; }
+            .header-room { font-size: 0.58rem; }
+            .participant-count { font-size: 0.65rem; }
+            .tile { min-height: 120px; }
+            .ctrl-btn { width: 48px; height: 48px; }
+            .ctrl-btn .icon { font-size: 1.3rem; }
+            .ctrl-btn.btn-leave { width: 52px; height: 52px; }
+            .stage-grid.layout-3, .stage-grid.layout-4 { gap: 4px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============ LOGIN OVERLAY ============ -->
+<div id="loginOverlay">
+    <div class="login-card">
+        <div class="login-badge">STAGE v2.0</div>
+        <h1><i class="ti ti-masks-theater"></i> Stage Live</h1>
+        <p class="subtitle">Live com palco e plateia. Host transmite, plateia assiste, host convida quem quiser subir.</p>
+
+        <!-- Role selector -->
+        <div class="role-selector">
+            <button type="button" class="role-btn active" data-role="host">
+                <i class="ti ti-video-plus"></i>
+                <div>
+                    <div class="role-title">Sou Host</div>
+                    <div class="role-desc">criar live</div>
+                </div>
+            </button>
+            <button type="button" class="role-btn" data-role="audience">
+                <i class="ti ti-eye"></i>
+                <div>
+                    <div class="role-title">Sou Plateia</div>
+                    <div class="role-desc">assistir</div>
+                </div>
+            </button>
+        </div>
+
+        <!-- Host-only fields -->
+        <div id="hostFields">
+            <div class="form-group" style="display:none">
+                <label>Account ID (comum para todos)</label>
+                <input type="text" id="loginAccountId" class="form-input" value="a3RD6P" placeholder="account-id" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nome da Sala</label>
+                    <input type="text" id="loginRoomId" class="form-input" value="room-test" placeholder="room-test" />
+                </div>
+                <div class="form-group">
+                    <label>Seu Nome</label>
+                    <input type="text" id="loginDisplayName" class="form-input" value="host" placeholder="host" />
+                </div>
+            </div>
+
+            <div class="form-group" style="display:none">
+                <label>Publish Token (mesmo para todos na conta)</label>
+                <input type="password" id="loginToken" class="form-input" value="56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa" placeholder="token" />
+            </div>
+
+            <div class="toggle-group">
+                <div class="toggle-item">
+                    <input type="checkbox" id="toggleVideo" checked />
+                    <label for="toggleVideo"><i class="ti ti-camera"></i> Câmera</label>
+                </div>
+                <div class="toggle-item">
+                    <input type="checkbox" id="toggleAudio" checked />
+                    <label for="toggleAudio"><i class="ti ti-microphone"></i> Microfone</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audience-only fields -->
+        <div id="audienceFields" style="display:none">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nome da Sala</label>
+                    <input type="text" id="loginRoomIdAud" class="form-input" value="room-test" placeholder="room-test" />
+                </div>
+                <div class="form-group">
+                    <label>Seu Nome</label>
+                    <input type="text" id="loginDisplayNameAud" class="form-input" value="viewer1" placeholder="viewer" />
+                </div>
+            </div>
+            <p style="margin-bottom:14px;padding:10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:0.75rem;color:var(--text-muted);line-height:1.5;">
+                <i class="ti ti-info-circle" style="color:var(--info);"></i> Plateia assiste ao palco. Sem câmera/mic — você só assiste e pode ser convidado(a) a subir no palco.
+            </p>
+        </div>
+
+        <button id="btnJoin" class="btn-join">
+            <span><i class="ti ti-rocket"></i> Criar Live</span>
+        </button>
+
+        <div id="loginError" class="login-error"></div>
+
+        <p style="margin-top:16px;font-size:0.7rem;color:var(--text-muted);line-height:1.5;">
+            <i class="ti ti-help"></i> <strong>Como funciona</strong> Host cria a live e transmite. Plateia entra para assistir. Host convida membros da plateia para subir no palco (viram guest com câmera/mic). Guests podem sair a qualquer momento.
+        </p>
+    </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <div>
+                <div class="header-title">
+                    <i class="ti ti-masks-theater"></i>
+                    <span>Stage Live</span>
+                    <span class="header-badge">STAGE v2.0</span>
+                </div>
+                <div class="header-room">
+                    room: <span id="hdrRoomName">room-test</span> | role: <span id="hdrRole">HOST</span> | Você: <span id="hdrSelfName">host</span>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="participant-count">
+                <span class="dot"></span>
+                <i class="ti ti-eye"></i>
+                <span id="hdrViewerCount">0</span> assistindo
+            </div>
+        </div>
+    </header>
+
+    <!-- Main area: stage area + sidebar -->
+    <div class="main-area">
+        <!-- Stage area -->
+        <div class="stage-area">
+            <div id="stageGrid" class="stage-grid layout-1">
+                <!-- Stage tiles rendered dynamically -->
+            </div>
+
+            <!-- Audience strip -->
+            <div class="audience-strip-container">
+                <div class="strip-label">
+                    <i class="ti ti-users"></i> Plateia
+                    <span class="strip-count" id="stripCount">0</span>
+                </div>
+                <div id="audienceStrip" class="audience-strip">
+                    <!-- Audience avatars rendered dynamically -->
+                </div>
+            </div>
+
+            <!-- Controls bar -->
+            <div class="controls-bar">
+                <button id="btnMute" class="ctrl-btn" title="Microfone">
+                    <span class="icon"><i class="ti ti-microphone"></i></span>
+                    <span>Mic</span>
+                </button>
+                <button id="btnCamera" class="ctrl-btn" title="Câmera">
+                    <span class="icon"><i class="ti ti-camera"></i></span>
+                    <span>Câmera</span>
+                </button>
+                <button id="btnToggleSidebar" class="ctrl-btn active" title="Chat / Plateia / Palco">
+                    <span class="icon"><i class="ti ti-message"></i></span>
+                    <span>Chat</span>
+                </button>
+                <button id="btnStage" class="ctrl-btn" style="display:none">
+                    <span class="icon"><i class="ti ti-player-stop"></i></span>
+                    <span id="btnStageLabel">Encerrar Live</span>
+                </button>
+                <button id="btnLeave" class="ctrl-btn danger btn-leave" title="Sair da live">
+                    <span class="icon"><i class="ti ti-phone-off"></i></span>
+                    <span>Sair</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar with 3 tabs -->
+        <aside id="sidebar" class="sidebar">
+            <button id="btnSidebarClose" class="sidebar-close-btn" title="Fechar"><i class="ti ti-x"></i></button>
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" data-tab="chat">
+                    <i class="ti ti-message"></i> Chat
+                </button>
+                <button class="tab-btn" data-tab="plateia">
+                    <i class="ti ti-users"></i> Plateia
+                </button>
+                <button class="tab-btn" data-tab="palco">
+                    <i class="ti ti-masks-theater"></i> Palco
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <!-- Chat tab -->
+                <div id="tabChat" class="tab-panel active">
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Mensagem..." maxlength="500" />
+                        <button id="btnChatSend" class="chat-send"><i class="ti ti-brand-telegram"></i></button>
+                    </div>
+                </div>
+                <!-- Plateia tab -->
+                <div id="tabPlateia" class="tab-panel">
+                    <div id="plateiaList" class="roster-list"></div>
+                </div>
+                <!-- Palco tab -->
+                <div id="tabPalco" class="tab-panel">
+                    <div id="palcoList" class="roster-list"></div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- Invite modal -->
+<div id="inviteOverlay" class="invite-overlay" style="display:none">
+    <div class="invite-card">
+        <div class="invite-icon"><i class="ti ti-masks-theater"></i></div>
+        <h2>🎬 Convite para o Palco</h2>
+        <p><strong id="inviteHostName">Host</strong> está te convidando para subir no palco</p>
+        <div class="invite-buttons">
+            <button id="btnDeclineInvite" class="invite-btn decline">Recusar</button>
+            <button id="btnAcceptInvite" class="invite-btn accept">Aceitar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Logs panel -->
+<button id="btnLogsToggle" class="logs-toggle" title="Logs"><i class="ti ti-terminal-2"></i></button>
+<div id="logsPanel" class="logs-panel">
+    <div class="logs-header">
+        <span>📋 Logs</span>
+        <span class="logs-clear" id="btnLogsClear">limpar</span>
+    </div>
+    <div id="logsContent" class="logs-content"></div>
+</div>
+
+<!-- Toast container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Pusher SDK -->
+<script src="https://sdk.f5hlive.com.br/pusher/8.5.0/pusher.min.js"></script>
+
+<script>
+'use strict';
+
+const SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? `${location.protocol}//${location.hostname}:443`
+    : 'https://director-ca.f5hlive.com.br:443';
+
+const PUSHER_KEY = '11215d6822a0854b4550';
+const PUSHER_CLUSTER = 'custom';
+const PUSHER_HOST = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? location.hostname
+    : 'custom.f5hlive.com.br';
+const PUSHER_PORT = (location.protocol === 'https:') ? 443 : 3001;
+
+const DEFAULT_ACCOUNT_ID = 'a3RD6P';
+
+function genShortId() {
+    return Math.random().toString(36).substring(2, 8);
+}
+
+function hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+    }
+    return Math.abs(h).toString(36);
+}
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+    role: 'host',                  // 'host' | 'guest' | 'audience'
+    selectedRole: 'host',          // seleção no login
+    accountId: DEFAULT_ACCOUNT_ID,
+    roomId: null,
+    displayName: null,
+    token: null,
+    videoEnabled: true,
+    audioEnabled: true,
+    localStreamName: null,         // streamName de publicação (host/guest)
+    audienceStreamName: null,      // streamName de coordenação Pusher (todos)
+    localStream: null,
+    localWs: null,
+    localPc: null,
+    localPublishActive: false,
+    remotes: new Map(),            // streamName -> RemoteParticipant
+    pusher: null,
+    channel: null,
+    isJoined: false,
+    micMuted: false,
+    camOff: false,
+    stageMembers: [],              // [{streamName, displayName, role}]
+    audienceMembers: [],           // [{streamName, displayName}]
+    audienceLastSeen: new Map(),   // WTC streamName → timestamp (host heartbeat)
+    presenceTimers: { ping: null, cleanup: null },
+    activeTab: 'chat',
+    sidebarVisible: true,
+    viewCount: 0,
+    viewCountTimer: null,
+    viewCountFetchOk: false,
+    pendingInvite: null,           // {targetStreamName, fromHost}
+    pendingGuestStreamName: null,  // gerado ao aceitar convite
+};
+
+// ============================================================
+// RemoteParticipant class (similar ao multi-call, com role)
+// ============================================================
+class RemoteParticipant {
+    constructor(streamName, displayName, role) {
+        this.streamName = streamName;
+        this.displayName = displayName || 'unknown';
+        this.role = role || 'guest'; // 'host' | 'guest'
+        this.ws = null;
+        this.pc = null;
+        this.videoEl = null;
+        this.audioEl = null;
+        this.tileEl = null;
+        this.stats = { bitrate: 0, packetsLost: 0, rtt: 0, connected: false };
+        this.reconnectAttempts = 0;
+        this.maxReconnects = 3;
+        this.closed = false;
+        this.micMuted = false;
+        this.camOff = false;
+    }
+
+    updateIndicators() {
+        if (!this.tileEl) return;
+        const indicators = this.tileEl.querySelector('.tile-indicators');
+        if (!indicators) return;
+        indicators.innerHTML = '';
+        if (this.micMuted) {
+            const m = document.createElement('div');
+            m.className = 'indicator mic-off';
+            m.innerHTML = '<i class="ti ti-microphone-off"></i>';
+            indicators.appendChild(m);
+        }
+        if (this.camOff) {
+            const c = document.createElement('div');
+            c.className = 'indicator cam-off';
+            c.innerHTML = '<i class="ti ti-camera-off"></i>';
+            indicators.appendChild(c);
+        }
+        if (this.stats && this.stats.bitrate > 0) {
+            const q = document.createElement('div');
+            q.className = 'indicator quality';
+            q.textContent = Math.round(this.stats.bitrate / 1000) + 'k';
+            indicators.appendChild(q);
+        }
+    }
+
+    async subscribe() {
+        if (this.closed) return;
+        try {
+            log(`Subscribing to ${this.displayName} (${this.streamName}) as ${this.role}...`, 'info');
+            // 1. Auth via HTTP
+            const response = await fetch(`${SERVER_URL}/api/director/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    streamAccountId: state.accountId,
+                    streamName: this.streamName
+                })
+            });
+            if (!response.ok) {
+                throw new Error(`Subscribe HTTP ${response.status}: ${await response.text()}`);
+            }
+            const data = await response.json();
+            const jwt = data.jwt || data.data?.jwt;
+            const urls = data.data?.urls || data.urls;
+            let wsUrl = null;
+            if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+            else if (typeof urls === 'string') wsUrl = urls;
+            else if (data.url) wsUrl = data.url;
+            if (!wsUrl || !jwt) throw new Error('Missing wsUrl or jwt in subscribe response');
+
+            // 2. Connect WebSocket
+            const wsUrlWithToken = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(jwt);
+            this.ws = new WebSocket(wsUrlWithToken);
+
+            this.ws.onopen = () => {
+                log(`WS open for ${this.displayName}`, 'ok');
+                this.setupPc();
+            };
+            this.ws.onmessage = (e) => this.onMessage(e);
+            this.ws.onerror = () => {
+                log(`WS error for ${this.displayName}`, 'err');
+            };
+            this.ws.onclose = () => {
+                log(`WS closed for ${this.displayName}`, 'warn');
+                if (!this.closed && this.reconnectAttempts < this.maxReconnects) {
+                    this.reconnectAttempts++;
+                    log(`Reconnect ${this.reconnectAttempts}/${this.maxReconnects} for ${this.displayName} in 2s...`, 'warn');
+                    setTimeout(() => { if (!this.closed) this.subscribe(); }, 2000);
+                }
+            };
+        } catch (err) {
+            log(`Subscribe error for ${this.displayName}: ${err.message}`, 'err');
+            if (!this.closed && this.reconnectAttempts < this.maxReconnects) {
+                this.reconnectAttempts++;
+                setTimeout(() => { if (!this.closed) this.subscribe(); }, 3000);
+            }
+        }
+    }
+
+    setupPc() {
+        this.pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        // recvonly transceivers for audio + video
+        this.pc.addTransceiver('audio', { direction: 'recvonly' });
+        this.pc.addTransceiver('video', { direction: 'recvonly' });
+
+        this.pc.ontrack = (event) => {
+            log(`Track received from ${this.displayName}: ${event.track.kind}`, 'ok');
+            const stream = event.streams[0];
+            if (event.track.kind === 'audio') {
+                this.audioEl = this.tileEl?.querySelector('audio');
+                if (this.audioEl) {
+                    this.audioEl.srcObject = stream;
+                    this.audioEl.play().catch(() => {});
+                }
+            } else if (event.track.kind === 'video') {
+                this.videoEl = this.tileEl?.querySelector('video');
+                if (this.videoEl) {
+                    this.videoEl.srcObject = stream;
+                    this.videoEl.style.display = 'block';
+                    this.videoEl.play().catch(() => {});
+                    const ph = this.tileEl?.querySelector('.tile-placeholder');
+                    if (ph) ph.style.display = 'none';
+                    log(`Video tile shown for ${this.displayName}`, 'ok');
+                }
+                event.track.onended = () => {
+                    if (this.videoEl) { this.videoEl.style.display = 'none'; this.videoEl.srcObject = null; }
+                    const ph = this.tileEl?.querySelector('.tile-placeholder');
+                    if (ph) ph.style.display = 'flex';
+                    log(`${this.displayName} video track ended`, 'warn');
+                };
+                event.track.onmute = () => {
+                    if (this.videoEl) this.videoEl.style.display = 'none';
+                    const ph = this.tileEl?.querySelector('.tile-placeholder');
+                    if (ph) ph.style.display = 'flex';
+                };
+                event.track.onunmute = () => {
+                    if (this.videoEl) this.videoEl.style.display = 'block';
+                    const ph = this.tileEl?.querySelector('.tile-placeholder');
+                    if (ph) ph.style.display = 'none';
+                };
+            }
+        };
+
+        this.pc.onicecandidate = (e) => {
+            if (e.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                try {
+                    this.ws.send(JSON.stringify({ type: 'candidate', candidate: e.candidate }));
+                } catch (err) {}
+            }
+        };
+
+        this.pc.oniceconnectionstatechange = () => {
+            const st = this.pc.iceConnectionState;
+            log(`${this.displayName} ICE: ${st}`, st === 'connected' ? 'ok' : (st === 'failed' ? 'err' : 'info'));
+            if (st === 'connected') {
+                this.stats.connected = true;
+                this.updateTileQuality();
+            } else if (st === 'failed' || st === 'disconnected') {
+                this.stats.connected = false;
+                this.updateTileQuality();
+            }
+        };
+
+        // Create offer (recvonly)
+        this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+            .then(offer => this.pc.setLocalDescription(offer))
+            .then(() => {
+                const localSdp = this.pc.localDescription.sdp;
+                log(`Sending view offer to ${this.displayName}...`, 'info');
+                this.ws.send(JSON.stringify({
+                    type: 'cmd',
+                    transId: Date.now().toString(),
+                    name: 'view',
+                    data: { sdp: localSdp }
+                }));
+            })
+            .catch(err => {
+                log(`Offer error for ${this.displayName}: ${err.message}`, 'err');
+            });
+
+        this.startStats();
+    }
+
+    onMessage(e) {
+        try {
+            const msg = JSON.parse(e.data);
+            let sdp = null;
+            if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+            else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+
+            if (sdp) {
+                if (!sdp.trim()) {
+                    // Empty answer = waiting room (publisher not ready yet)
+                    log(`${this.displayName}: aguardando publisher...`, 'warn');
+                    this.showWaiting(true);
+                    setTimeout(() => {
+                        if (!this.closed && !this.stats.connected) {
+                            this.retrySubscribe();
+                        }
+                    }, 3000);
+                    return;
+                }
+                log(`Answer received from ${this.displayName}`, 'ok');
+                this.showWaiting(false);
+                this.pc.setRemoteDescription({ type: 'answer', sdp: sdp })
+                    .catch(err => log(`SRD error for ${this.displayName}: ${err.message}`, 'err'));
+            } else if (msg.type === 'candidate' && msg.candidate) {
+                this.pc.addIceCandidate(msg.candidate).catch(() => {});
+            } else if (msg.type === 'event' && msg.name === 'inactive') {
+                log(`${this.displayName} saiu (inactive event)`, 'warn');
+                showToast(`${this.displayName} saiu do palco`, 'leave');
+
+                const streamName = this.streamName;
+
+                if (state.role === 'host') {
+                    state.stageMembers = state.stageMembers.filter(m => m.streamName !== streamName);
+                    broadcastStageUpdate();
+                }
+                removeRemote(streamName);
+            } else if (msg.type === 'error') {
+                log(`Server error for ${this.displayName}: ${msg.message}`, 'err');
+            }
+        } catch (err) {
+            log(`MSG parse error for ${this.displayName}: ${err.message}`, 'err');
+        }
+    }
+
+    retrySubscribe() {
+        if (this.closed) return;
+        if (this.pc) { try { this.pc.close(); } catch(e){} this.pc = null; }
+        if (this.ws) { try { this.ws.close(); } catch(e){} this.ws = null; }
+        this.subscribe();
+    }
+
+    showWaiting(show) {
+        if (!this.tileEl) return;
+        let w = this.tileEl.querySelector('.tile-waiting');
+        if (show) {
+            if (!w) {
+                w = document.createElement('div');
+                w.className = 'tile-waiting';
+                w.innerHTML = '<i class="ti ti-hourglass-empty"></i> aguardando';
+                this.tileEl.appendChild(w);
+            }
+        } else {
+            if (w) w.remove();
+        }
+    }
+
+    startStats() {
+        if (this._statsTimer) clearInterval(this._statsTimer);
+        this._statsTimer = setInterval(() => {
+            if (!this.pc || this.closed) return;
+            this.pc.getStats(null).then(stats => {
+                let bitrate = 0, packetsLost = 0, rtt = 0;
+                stats.forEach(report => {
+                    if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                        if (this._lastBytes && report.bytesReceived > this._lastBytes) {
+                            bitrate = Math.round((report.bytesReceived - this._lastBytes) * 8 / 1000);
+                        }
+                        this._lastBytes = report.bytesReceived;
+                        packetsLost = report.packetsLost || 0;
+                    }
+                    if (report.type === 'candidate-pair' && report.nominated) {
+                        rtt = report.currentRoundTripTime ? Math.round(report.currentRoundTripTime * 1000) : 0;
+                    }
+                });
+                this.stats.bitrate = bitrate;
+                this.stats.packetsLost = packetsLost;
+                this.stats.rtt = rtt;
+                this.updateTileQuality();
+            });
+        }, 2000);
+    }
+
+    updateTileQuality() {
+        if (!this.tileEl) return;
+        let q = this.tileEl.querySelector('.indicator.quality');
+        if (!q) {
+            q = document.createElement('div');
+            q.className = 'indicator quality';
+            const info = this.tileEl.querySelector('.tile-info');
+            if (info) info.querySelector('.tile-indicators').appendChild(q);
+        }
+        if (!this.stats.connected) {
+            q.innerHTML = '<i class="ti ti-hourglass-empty"></i>';
+            q.className = 'indicator quality bad';
+        } else {
+            const kbps = this.stats.bitrate;
+            q.textContent = kbps > 1000 ? (kbps/1000).toFixed(1)+'M' : kbps+'k';
+            q.className = 'indicator quality' + (kbps < 200 ? ' bad' : (kbps < 500 ? ' warn' : ''));
+        }
+    }
+
+    close() {
+        this.closed = true;
+        if (this._statsTimer) clearInterval(this._statsTimer);
+        if (this.pc) { try { this.pc.close(); } catch(e){} this.pc = null; }
+        if (this.ws) { try { this.ws.close(); } catch(e){} this.ws = null; }
+        if (this.tileEl) { this.tileEl.remove(); this.tileEl = null; }
+    }
+}
+
+// ============================================================
+// DOM REFS
+// ============================================================
+const ui = {
+    // login
+    loginOverlay: document.getElementById('loginOverlay'),
+    loginAccountId: document.getElementById('loginAccountId'),
+    loginRoomId: document.getElementById('loginRoomId'),
+    loginDisplayName: document.getElementById('loginDisplayName'),
+    loginToken: document.getElementById('loginToken'),
+    loginRoomIdAud: document.getElementById('loginRoomIdAud'),
+    loginDisplayNameAud: document.getElementById('loginDisplayNameAud'),
+    toggleVideo: document.getElementById('toggleVideo'),
+    toggleAudio: document.getElementById('toggleAudio'),
+    btnJoin: document.getElementById('btnJoin'),
+    loginError: document.getElementById('loginError'),
+    hostFields: document.getElementById('hostFields'),
+    audienceFields: document.getElementById('audienceFields'),
+    roleBtns: document.querySelectorAll('.role-btn'),
+
+    // app
+    app: document.getElementById('app'),
+    hdrRoomName: document.getElementById('hdrRoomName'),
+    hdrRole: document.getElementById('hdrRole'),
+    hdrSelfName: document.getElementById('hdrSelfName'),
+    hdrViewerCount: document.getElementById('hdrViewerCount'),
+
+    // stage
+    stageGrid: document.getElementById('stageGrid'),
+    audienceStrip: document.getElementById('audienceStrip'),
+    stripCount: document.getElementById('stripCount'),
+
+    // sidebar
+    sidebar: document.getElementById('sidebar'),
+    btnSidebarClose: document.getElementById('btnSidebarClose'),
+    tabBtns: document.querySelectorAll('.tab-btn'),
+    tabChat: document.getElementById('tabChat'),
+    tabPlateia: document.getElementById('tabPlateia'),
+    tabPalco: document.getElementById('tabPalco'),
+    chatMessages: document.getElementById('chatMessages'),
+    chatInput: document.getElementById('chatInput'),
+    btnChatSend: document.getElementById('btnChatSend'),
+    plateiaList: document.getElementById('plateiaList'),
+    palcoList: document.getElementById('palcoList'),
+
+    // controls
+    btnMute: document.getElementById('btnMute'),
+    btnCamera: document.getElementById('btnCamera'),
+    btnToggleSidebar: document.getElementById('btnToggleSidebar'),
+    btnStage: document.getElementById('btnStage'),
+    btnStageLabel: document.getElementById('btnStageLabel'),
+    btnLeave: document.getElementById('btnLeave'),
+
+    // invite
+    inviteOverlay: document.getElementById('inviteOverlay'),
+    inviteHostName: document.getElementById('inviteHostName'),
+    btnAcceptInvite: document.getElementById('btnAcceptInvite'),
+    btnDeclineInvite: document.getElementById('btnDeclineInvite'),
+
+    // logs
+    btnLogsToggle: document.getElementById('btnLogsToggle'),
+    logsPanel: document.getElementById('logsPanel'),
+    logsContent: document.getElementById('logsContent'),
+    btnLogsClear: document.getElementById('btnLogsClear'),
+
+    // toast
+    toastContainer: document.getElementById('toastContainer'),
+};
+
+// ============================================================
+// UTILS
+// ============================================================
+function log(msg, level = 'info') {
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (level === 'err' ? 'err' : (level === 'ok' ? 'ok' : (level === 'warn' ? 'warn' : '')));
+    line.innerHTML = `<span class="ts">[${ts}]</span> ${msg}`;
+    ui.logsContent.appendChild(line);
+    ui.logsContent.scrollTop = ui.logsContent.scrollHeight;
+    while (ui.logsContent.children.length > 200) {
+        ui.logsContent.removeChild(ui.logsContent.firstChild);
+    }
+    console.log(`[STAGE] ${msg}`);
+}
+
+function showToast(msg, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = msg;
+    ui.toastContainer.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+function showLoginError(msg) {
+    ui.loginError.textContent = msg;
+    ui.loginError.classList.add('show');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function isMobile() {
+    return window.matchMedia('(max-width: 768px)').matches || /Mobi|Android|iPhone|iPod/i.test(navigator.userAgent);
+}
+
+// ============================================================
+// ROLE SELECTOR
+// ============================================================
+function selectRole(role) {
+    state.selectedRole = role;
+    ui.roleBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.role === role);
+    });
+    if (role === 'host') {
+        ui.hostFields.style.display = 'block';
+        ui.audienceFields.style.display = 'none';
+        ui.btnJoin.querySelector('span').innerHTML = '<i class="ti ti-rocket"></i> Criar Live';
+    } else {
+        ui.hostFields.style.display = 'none';
+        ui.audienceFields.style.display = 'block';
+        ui.btnJoin.querySelector('span').innerHTML = '<i class="ti ti-rocket"></i> Entrar na Plateia';
+    }
+}
+
+// ============================================================
+// STAGE GRID + TILE RENDERING
+// ============================================================
+function renderStageGrid() {
+    const members = state.stageMembers;
+    const total = members.length;
+    let layout = 1;
+    if (total <= 1) layout = 1;
+    else if (total <= 2) layout = 2;
+    else if (total <= 4) layout = 4;
+    ui.stageGrid.className = 'stage-grid layout-' + layout;
+
+    // Show empty placeholder if no members
+    let emptyMsg = ui.stageGrid.querySelector('.stage-empty');
+    if (total === 0) {
+        if (!emptyMsg) {
+            emptyMsg = document.createElement('div');
+            emptyMsg.className = 'stage-empty';
+            const msg = state.role === 'audience'
+                ? 'Aguardando o host iniciar a live...'
+                : 'Ninguém no palco ainda';
+            emptyMsg.innerHTML = `<i class="ti ti-masks-theater"></i><div>${msg}</div>`;
+            ui.stageGrid.appendChild(emptyMsg);
+        }
+    } else {
+        if (emptyMsg) emptyMsg.remove();
+    }
+}
+
+function createTile(streamName, displayName, role, isSelf) {
+
+    if (!isSelf && streamName === state.localStreamName) {
+        log('DEFESA createTile: rejeitado criar tile REMOTE para self streamName=' + streamName + '. Convertendo para self.', 'warn');
+        isSelf = true;
+    }
+
+    if (!isSelf) {
+        try {
+            const selfTileForStream = ui.stageGrid.querySelector(
+                '.tile.self[data-stream-name="' + CSS.escape(streamName) + '"]'
+            );
+            if (selfTileForStream) {
+                log('DEFESA createTile v1.6: tile SELF já existe no DOM para ' + streamName + ' — RECUSADO criar tile REMOTO (preserva câmera do guest)', 'warn');
+                return null; 
+            }
+        } catch(e) {
+            log('DEFESA createTile v1.6: erro na query self tile: ' + e.message, 'warn');
+        }
+    }
+
+    const existingTile = ui.stageGrid.querySelector('.tile[data-stream-name="' + CSS.escape(streamName) + '"]');
+    if (existingTile) {
+        if (existingTile.classList.contains('self') && !isSelf) {
+            log('DEFESA createTile v1.6: tile SELF existente para ' + streamName + ' — RECUSADO criar REMOTO (preserva câmera)', 'warn');
+            return null;
+        }
+        log('DEFESA createTile: tile já existia para ' + streamName + ' — removendo antes de recriar', 'warn');
+        existingTile.remove();
+    }
+
+    const tile = document.createElement('div');
+    tile.className = 'tile' + (isSelf ? ' self' : '');
+    tile.dataset.streamName = streamName;
+    tile.dataset.role = role;
+
+    // Badge (HOST / CONVIDADO)
+    const badge = document.createElement('div');
+    badge.className = 'tile-badge ' + role;
+    badge.textContent = role === 'host' ? 'HOST' : 'CONVIDADO';
+    tile.appendChild(badge);
+
+    // Placeholder
+    const placeholder = document.createElement('div');
+    placeholder.className = 'tile-placeholder';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = (displayName || '?').charAt(0).toUpperCase();
+    placeholder.appendChild(avatar);
+    const name = document.createElement('div');
+    name.textContent = displayName || 'unknown';
+    placeholder.appendChild(name);
+    tile.appendChild(placeholder);
+
+    // Video
+    const video = document.createElement('video');
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.style.display = 'none';
+    tile.appendChild(video);
+
+    // Audio
+    const audio = document.createElement('audio');
+    audio.autoplay = true;
+    tile.appendChild(audio);
+
+    // Info bar
+    const info = document.createElement('div');
+    info.className = 'tile-info';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'tile-name';
+    nameSpan.innerHTML = (isSelf ? '<i class="ti ti-user-heart"></i> ' : '<i class="ti ti-user"></i> ')
+        + escapeHtml(displayName || 'unknown') + (isSelf ? ' (você)' : '');
+    const indicators = document.createElement('div');
+    indicators.className = 'tile-indicators';
+    info.appendChild(nameSpan);
+    info.appendChild(indicators);
+    tile.appendChild(info);
+
+    // Kick button (host viewing guest tile, not self)
+    if (state.role === 'host' && role === 'guest' && !isSelf) {
+        const kickBtn = document.createElement('button');
+        kickBtn.className = 'tile-kick-btn';
+        kickBtn.innerHTML = '<i class="ti ti-user-minus"></i> Remover do palco';
+        kickBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sendKickStage(streamName);
+        });
+        tile.appendChild(kickBtn);
+    }
+
+    if (isSelf && role === 'guest') {
+        const leaveBtn = document.createElement('button');
+        leaveBtn.className = 'tile-leave-btn';
+        leaveBtn.innerHTML = '<i class="ti ti-arrow-down"></i> Descer do Palco';
+        leaveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Sair do palco e voltar para plateia? Você continuará assistindo como público.')) {
+                returnToAudience();
+            }
+        });
+        tile.appendChild(leaveBtn);
+    }
+
+    ui.stageGrid.appendChild(tile);
+    return { tile, video, audio };
+}
+
+function updateSelfTile() {
+    if (state.role === 'audience') return; // audience has no self tile
+    let selfTile = ui.stageGrid.querySelector('.tile.self');
+    if (!selfTile) {
+        const created = createTile(state.localStreamName, state.displayName, state.role, true);
+        selfTile = created.tile;
+    }
+    const video = selfTile.querySelector('video');
+    const placeholder = selfTile.querySelector('.tile-placeholder');
+
+    const hasVideoTrack = state.localStream && state.localStream.getVideoTracks().length > 0;
+    const videoTrackEnabled = hasVideoTrack && state.localStream.getVideoTracks()[0].enabled;
+    const shouldShowVideo = state.localStream && state.videoEnabled && !state.camOff && hasVideoTrack && videoTrackEnabled;
+    if (shouldShowVideo) {
+        if (video.srcObject !== state.localStream) {
+            video.srcObject = state.localStream;
+            log('updateSelfTile: anexando stream ao video element', 'info');
+        }
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+
+        video.play().then(() => {
+            log('updateSelfTile: video.play() OK — câmera ativa', 'ok');
+        }).catch(err => {
+            log('updateSelfTile: video.play() falhou: ' + err.message, 'warn');
+        });
+    } else {
+        video.style.display = 'none';
+ 
+        if (video.srcObject) {
+            try { video.pause(); } catch(e){}
+            video.srcObject = null;
+        }
+
+        const audioActive = state.localStream && state.localStream.getAudioTracks().length > 0;
+        if (state.camOff && audioActive && !state.micMuted) {
+            placeholder.innerHTML = '<div class="avatar" style="background:rgba(16,185,129,0.2);border:2px solid var(--primary);"><i class="ti ti-microphone" style="font-size:1.5rem;color:var(--primary-light);"></i></div><div style="color:var(--primary-light);">Áudio apenas</div>';
+        } else if (state.camOff && audioActive && state.micMuted) {
+            placeholder.innerHTML = '<div class="avatar" style="background:rgba(239,68,68,0.2);border:2px solid var(--danger);"><i class="ti ti-microphone-off" style="font-size:1.5rem;color:#fca5a5;"></i></div><div>Silenciado</div>';
+        } else {
+            // Restore original placeholder
+            placeholder.innerHTML = '<div class="avatar">' + (state.displayName || '?').charAt(0).toUpperCase() + '</div><div>' + escapeHtml(state.displayName || 'unknown') + '</div>';
+        }
+        placeholder.style.display = 'flex';
+    }
+    const indicators = selfTile.querySelector('.tile-indicators');
+    indicators.innerHTML = '';
+    if (state.micMuted) {
+        const m = document.createElement('div');
+        m.className = 'indicator mic-off';
+        m.innerHTML = '<i class="ti ti-microphone-off"></i>';
+        indicators.appendChild(m);
+    }
+    if (state.camOff) {
+        const c = document.createElement('div');
+        c.className = 'indicator cam-off';
+        c.innerHTML = '<i class="ti ti-camera-off"></i>';
+        indicators.appendChild(c);
+    }
+    renderStageGrid();
+}
+
+// ============================================================
+// AUDIENCE STRIP + SIDEBAR TABS RENDERING
+// ============================================================
+function renderAudienceStrip() {
+    ui.audienceStrip.innerHTML = '';
+    ui.stripCount.textContent = state.audienceMembers.length;
+    if (state.audienceMembers.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'strip-empty';
+        empty.textContent = 'Ninguém na plateia ainda';
+        ui.audienceStrip.appendChild(empty);
+        return;
+    }
+    state.audienceMembers.forEach(member => {
+        const avatar = document.createElement('div');
+        avatar.className = 'audience-avatar';
+        avatar.dataset.streamName = member.streamName;
+        avatar.title = member.displayName;
+
+        const circle = document.createElement('div');
+        circle.className = 'avatar-circle';
+        circle.textContent = (member.displayName || '?').charAt(0).toUpperCase();
+        avatar.appendChild(circle);
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'avatar-name';
+        nameEl.textContent = member.displayName;
+        avatar.appendChild(nameEl);
+
+        // Host: invite button overlay
+        if (state.role === 'host') {
+            const onStage = state.stageMembers.some(m => m.streamName === member.streamName);
+            if (!onStage) {
+                const inviteBtn = document.createElement('button');
+                inviteBtn.className = 'invite-btn-overlay';
+                inviteBtn.innerHTML = '<i class="ti ti-plus"></i>';
+                inviteBtn.title = 'Convidar para o palco';
+                inviteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    sendInvite(member.streamName, member.displayName);
+                });
+                avatar.appendChild(inviteBtn);
+            }
+        }
+
+        ui.audienceStrip.appendChild(avatar);
+    });
+}
+
+function renderPlateiaTab() {
+    ui.plateiaList.innerHTML = '';
+    if (state.audienceMembers.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'roster-empty';
+        empty.textContent = 'Ninguém na plateia ainda';
+        ui.plateiaList.appendChild(empty);
+        return;
+    }
+    state.audienceMembers.forEach(member => {
+        const row = document.createElement('div');
+        row.className = 'roster-row';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'roster-avatar';
+        avatar.textContent = (member.displayName || '?').charAt(0).toUpperCase();
+        row.appendChild(avatar);
+
+        const name = document.createElement('div');
+        name.className = 'roster-name';
+        const nameText = document.createElement('span');
+        nameText.className = 'roster-name-text';
+        nameText.textContent = member.displayName;
+        name.appendChild(nameText);
+        row.appendChild(name);
+
+        if (state.role === 'host') {
+            const onStage = state.stageMembers.some(m => m.streamName === member.streamName);
+            if (!onStage) {
+                const inviteBtn = document.createElement('button');
+                inviteBtn.className = 'roster-btn invite';
+                inviteBtn.innerHTML = '<i class="ti ti-user-plus"></i> Convidar';
+                inviteBtn.addEventListener('click', () => sendInvite(member.streamName, member.displayName));
+                row.appendChild(inviteBtn);
+            } else {
+                const badge = document.createElement('span');
+                badge.className = 'roster-badge';
+                badge.textContent = 'no palco';
+                row.appendChild(badge);
+            }
+        }
+        ui.plateiaList.appendChild(row);
+    });
+}
+
+function renderPalcoTab() {
+    ui.palcoList.innerHTML = '';
+    if (state.stageMembers.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'roster-empty';
+        empty.textContent = 'Palco vazio';
+        ui.palcoList.appendChild(empty);
+        return;
+    }
+    state.stageMembers.forEach(member => {
+        const row = document.createElement('div');
+        row.className = 'roster-row';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'roster-avatar ' + member.role;
+        avatar.textContent = (member.displayName || '?').charAt(0).toUpperCase();
+        row.appendChild(avatar);
+
+        const info = document.createElement('div');
+        info.className = 'roster-name';
+        const nameText = document.createElement('span');
+        nameText.className = 'roster-name-text';
+        nameText.textContent = member.displayName + (member.streamName === state.localStreamName ? ' (você)' : '');
+        info.appendChild(nameText);
+        const tag = document.createElement('span');
+        tag.className = 'role-tag ' + member.role;
+        tag.textContent = member.role === 'host' ? 'HOST' : 'CONVIDADO';
+        info.appendChild(tag);
+        row.appendChild(info);
+
+        // Actions
+        if (state.role === 'host' && member.role === 'guest' && member.streamName !== state.localStreamName) {
+            const kickBtn = document.createElement('button');
+            kickBtn.className = 'roster-btn kick';
+            kickBtn.innerHTML = '<i class="ti ti-user-minus"></i> Remover';
+            kickBtn.addEventListener('click', () => sendKickStage(member.streamName));
+            row.appendChild(kickBtn);
+        } else if (member.streamName === state.localStreamName && state.role === 'guest') {
+            const leaveBtn = document.createElement('button');
+            leaveBtn.className = 'roster-btn leave';
+            leaveBtn.innerHTML = '<i class="ti ti-arrow-down"></i> Sair do Palco';
+            leaveBtn.addEventListener('click', () => returnToAudience());
+            row.appendChild(leaveBtn);
+        }
+        ui.palcoList.appendChild(row);
+    });
+}
+
+// ============================================================
+// PUBLISH (host + guest)
+// ============================================================
+async function startPublish() {
+    try {
+
+        if (!state.videoEnabled && !state.audioEnabled) {
+            log('Nenhum áudio/vídeo habilitado — ativando áudio por padrão', 'warn');
+            state.audioEnabled = true;
+        }
+        log('Capturing media (getUserMedia)... video=' + state.videoEnabled + ' audio=' + state.audioEnabled, 'info');
+        const constraints = {
+            video: state.videoEnabled ? { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } } : false,
+            audio: state.audioEnabled ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false
+        };
+        try {
+            state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (mediaErr) {
+            log('getUserMedia falhou: ' + mediaErr.name + ' — ' + mediaErr.message, 'warn');
+ 
+            if (state.videoEnabled) {
+                log('Tentando fallback audio-only...', 'warn');
+                state.videoEnabled = false;
+                state.camOff = true;
+                try {
+                    state.localStream = await navigator.mediaDevices.getUserMedia({
+                        video: false,
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                    });
+                    showToast('Câmera indisponível — publicando apenas áudio', 'leave');
+                } catch (audioErr) {
+                    log('getUserMedia áudio também falhou: ' + audioErr.name + ' — ' + audioErr.message, 'err');
+                    throw new Error('Não foi possível acessar câmera/microfone. Verifique as permissões do navegador (ícone de cadeado na barra de endereço). Erro: ' + audioErr.name + ': ' + audioErr.message);
+                }
+            } else {
+                // Video already disabled — audio failed
+                throw new Error('Permissão de microfone negada ou indisponível. Verifique as permissões do navegador. Erro: ' + mediaErr.name + ': ' + mediaErr.message);
+            }
+        }
+        log('Media captured: ' +
+            state.localStream.getVideoTracks().length + ' video, ' +
+            state.localStream.getAudioTracks().length + ' audio', 'ok');
+
+        const vTracks = state.localStream.getVideoTracks();
+        const aTracks = state.localStream.getAudioTracks();
+        if (state.videoEnabled && vTracks.length === 0) {
+            log('Vídeo solicitado mas getUserMedia retornou 0 video tracks — mudando para audio-only', 'warn');
+            state.videoEnabled = false;
+            state.camOff = true;
+        }
+        if (state.audioEnabled && aTracks.length === 0) {
+            log('Áudio solicitado mas getUserMedia retornou 0 audio tracks', 'warn');
+            state.audioEnabled = false;
+        }
+        if (!state.videoEnabled && !state.audioEnabled) {
+            throw new Error('Nenhuma track de mídia disponível. Verifique câmera/microfone.');
+        }
+
+        updateSelfTile();
+
+        log('Authenticating publish...', 'info');
+        const response = await fetch(`${SERVER_URL}/api/director/publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                token: state.token,
+                streamName: state.localStreamName
+            })
+        });
+        if (!response.ok) {
+            throw new Error(`Publish HTTP ${response.status}: ${await response.text()}`);
+        }
+        const data = await response.json();
+        log('Publish auth OK.', 'ok');
+
+        const jwt = data.jwt || data.data?.jwt;
+        const urls = data.data?.urls || data.urls;
+        let wsUrl = null;
+        if (Array.isArray(urls) && urls.length) wsUrl = urls[0];
+        else if (typeof urls === 'string') wsUrl = urls;
+        else if (data.url) wsUrl = data.url;
+        if (!wsUrl || !jwt) throw new Error('Missing wsUrl or jwt in publish response');
+
+        // Connect WebSocket
+        const wsUrlWithToken = wsUrl + (wsUrl.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(jwt);
+        state.localWs = new WebSocket(wsUrlWithToken);
+
+        state.localWs.onopen = () => {
+            log('Publish WS open. Creating PeerConnection...', 'ok');
+            setupPublishPc();
+        };
+        state.localWs.onmessage = (e) => onPublishMessage(e);
+        state.localWs.onerror = () => log('Publish WS error', 'err');
+        state.localWs.onclose = () => log('Publish WS closed', 'warn');
+
+    } catch (err) {
+        log('Publish error: ' + err.message, 'err');
+        showToast('Erro ao publicar: ' + err.message, 'leave');
+
+        if (state.role === 'guest') {
+            log('Falha ao subir no palco — voltando para plateia', 'warn');
+
+            const failedGuestStreamName = state.localStreamName;
+
+            stopPublish();
+
+            if (state.channel && failedGuestStreamName) {
+                try {
+                    state.channel.trigger('client-leave-stage', {
+                        guestStreamName: failedGuestStreamName,
+                        audienceStreamName: state.audienceStreamName,
+                        displayName: state.displayName
+                    });
+                    log('client-leave-stage enviado (falha ao publicar) — host deve remover do palco', 'info');
+                } catch(e) {
+                    log('client-leave-stage trigger error: ' + e.message, 'err');
+                }
+            }
+
+            state.role = 'audience';
+            state.localStreamName = null;
+            state.pendingGuestStreamName = null;
+
+            state.videoEnabled = false;
+            state.audioEnabled = false;
+            state.localPublishActive = false;
+            ui.hdrRole.textContent = 'AUDIENCE';
+            updateControlsForRole();
+            sendAudienceJoin();
+            addSystemMessage('Falha ao subir no palco. Voltando para plateia.');
+        }
+    }
+}
+
+function setupPublishPc() {
+    state.localPc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
+
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(track => {
+            state.localPc.addTrack(track, state.localStream);
+            log('Added track to publish PC: ' + track.kind, 'ok');
+        });
+    }
+
+    state.localPc.onicecandidate = (e) => {
+        if (e.candidate && state.localWs && state.localWs.readyState === WebSocket.OPEN) {
+            try {
+                state.localWs.send(JSON.stringify({ type: 'candidate', candidate: e.candidate }));
+            } catch (err) {}
+        }
+    };
+
+    state.localPc.oniceconnectionstatechange = () => {
+        log('Publish ICE: ' + state.localPc.iceConnectionState,
+            state.localPc.iceConnectionState === 'connected' ? 'ok' : 'info');
+    };
+
+    state.localPc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false })
+        .then(offer => state.localPc.setLocalDescription(offer))
+        .then(() => {
+            const localSdp = state.localPc.localDescription.sdp;
+            log('Sending publish offer...', 'info');
+            state.localWs.send(JSON.stringify({
+                type: 'cmd',
+                transId: Date.now().toString(),
+                name: 'publish',
+                data: { sdp: localSdp }
+            }));
+        })
+        .catch(err => {
+            log('Publish offer error: ' + err.message, 'err');
+        });
+}
+
+function onPublishMessage(e) {
+    try {
+        const msg = JSON.parse(e.data);
+        let sdp = null;
+        if (msg.type === 'answer' && msg.sdp) sdp = msg.sdp;
+        else if (msg.type === 'response' && msg.data && msg.data.sdp) sdp = msg.data.sdp;
+
+        if (sdp) {
+            log('Publish answer received', 'ok');
+            state.localPc.setRemoteDescription({ type: 'answer', sdp: sdp })
+                .catch(err => log('Publish SRD error: ' + err.message, 'err'));
+        } else if (msg.type === 'candidate' && msg.candidate) {
+            state.localPc.addIceCandidate(msg.candidate).catch(() => {});
+        } else if (msg.type === 'event' && msg.name === 'active') {
+            if (!state.localPublishActive) {
+                state.localPublishActive = true;
+                log('✓ Publish ACTIVE — no palco', 'ok');
+
+                if (state.role === 'host') {
+                    broadcastStageUpdate();
+                }
+                showToast('Você está no palco!', 'join');
+            }
+        } else if (msg.type === 'error') {
+            log('Publish server error: ' + msg.message, 'err');
+        }
+    } catch (err) {
+        log('Publish msg error: ' + err.message, 'err');
+    }
+}
+
+function stopPublish() {
+    if (state.localPc) { try { state.localPc.close(); } catch(e){} state.localPc = null; }
+    if (state.localWs) { try { state.localWs.close(); } catch(e){} state.localWs = null; }
+    if (state.localStream) {
+        state.localStream.getTracks().forEach(t => t.stop());
+        state.localStream = null;
+    }
+    state.localPublishActive = false;
+    // Remove self tile
+    const selfTile = ui.stageGrid.querySelector('.tile.self');
+    if (selfTile) selfTile.remove();
+}
+
+// ============================================================
+// PUSHER — STAGE COORDINATION
+// ============================================================
+function setupPusher() {
+    log('Connecting to Pusher...', 'info');
+    state.pusher = new Pusher(PUSHER_KEY, {
+        cluster: PUSHER_CLUSTER,
+        wsHost: PUSHER_HOST,
+        wsPort: PUSHER_PORT,
+        wssPort: PUSHER_PORT,
+        enabledTransports: ['ws', 'wss'],
+        forceTLS: (location.protocol === 'https:'),
+        disableStats: true,
+        channelAuthorization: undefined,
+    });
+
+    const channelName = 'stage-' + state.roomId;
+    state.channel = state.pusher.subscribe(channelName);
+    log('Pusher channel: ' + channelName, 'info');
+
+    state.channel.bind('pusher:subscription_succeeded', () => {
+        log('Pusher subscribed to stage channel', 'ok');
+        if (state.role === 'host') {
+
+            broadcastStageUpdate();
+
+            broadcastAudienceUpdate();
+
+            sendHostAnnounce();
+        } else {
+
+            sendAudienceJoin();
+        }
+    });
+
+    state.channel.bind('pusher:subscription_error', (err) => {
+        log('Pusher subscription error: ' + JSON.stringify(err), 'err');
+    });
+
+    state.channel.bind('client-host-query', (data) => {
+        if (!data) return;
+        if (state.role !== 'host') return;
+        log(`Host-query recebido de ${data.from} — respondendo com stage-update`, 'info');
+        broadcastStageUpdate();
+    });
+
+    state.channel.bind('client-host-announce', (data) => {
+        if (!data) return;
+        if (state.role !== 'audience') return;
+
+        log(`Host-announce recebido de ${data.hostDisplayName} — re-anunciando presença`, 'info');
+        sendAudienceJoin();
+    });
+
+    // Audience join
+    state.channel.bind('client-audience-join', (data) => {
+        if (!data) return;
+        if (data.streamName === state.audienceStreamName) return; 
+
+        const existingByName = state.audienceMembers.find(m => m.displayName === data.displayName);
+        const existingByStream = state.audienceMembers.find(m => m.streamName === data.streamName);
+        if (existingByStream) {
+
+            if (existingByStream.displayName !== data.displayName) {
+                existingByStream.displayName = data.displayName;
+                renderAudienceStrip();
+                if (state.activeTab === 'plateia') renderPlateiaTab();
+            }
+        } else if (existingByName) {
+
+            log(`Plateia: ${data.displayName} reconectou (streamName atualizado)`, 'info');
+            existingByName.streamName = data.streamName;
+            renderAudienceStrip();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+        } else {
+            // Novo membro
+            state.audienceMembers.push({ streamName: data.streamName, displayName: data.displayName });
+            renderAudienceStrip();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+            log(`Plateia: ${data.displayName} entrou`, 'info');
+        }
+
+        if (state.role === 'host') {
+            state.audienceLastSeen.set(data.streamName, Date.now());
+        }
+
+        if (state.role === 'host') {
+            broadcastStageUpdate();
+            broadcastAudienceUpdate();
+        }
+    });
+
+    state.channel.bind('client-presence-ping', (data) => {
+        if (!data) return;
+        // Só viewers respondem ao ping do host
+        if (state.role !== 'audience') return;
+        try {
+            state.channel.trigger('client-presence-pong', {
+                streamName: state.audienceStreamName,
+                displayName: state.displayName,
+                ts: Date.now()
+            });
+        } catch(e) {}
+    });
+
+    state.channel.bind('client-presence-pong', (data) => {
+        if (!data) return;
+        if (state.role !== 'host') return;
+
+        state.audienceLastSeen.set(data.streamName, Date.now());
+
+        if (!state.audienceMembers.find(m => m.streamName === data.streamName)) {
+		
+            const existingByName = state.audienceMembers.find(m => m.displayName === data.displayName);
+            if (existingByName) {
+                existingByName.streamName = data.streamName;
+            } else {
+                state.audienceMembers.push({ streamName: data.streamName, displayName: data.displayName });
+            }
+            renderAudienceStrip();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+            broadcastAudienceUpdate();
+        }
+    });
+
+    state.channel.bind('client-audience-update', (data) => {
+        if (!data || !Array.isArray(data.audienceMembers)) return;
+
+        let hostRoster = data.audienceMembers.slice();
+        const selfInRoster = hostRoster.some(m => m.streamName === state.audienceStreamName);
+        if (state.role === 'audience' && !selfInRoster) {
+
+            hostRoster.push({ streamName: state.audienceStreamName, displayName: state.displayName });
+        }
+        state.audienceMembers = hostRoster;
+        renderAudienceStrip();
+        if (state.activeTab === 'plateia') renderPlateiaTab();
+    });
+
+    // Audience leave
+    state.channel.bind('client-audience-leave', (data) => {
+        if (!data) return;
+        
+        const wasIn = state.audienceMembers.find(m =>
+            m.streamName === data.streamName || m.displayName === data.displayName
+        );
+        if (wasIn) {
+            state.audienceMembers = state.audienceMembers.filter(m =>
+                m.streamName !== data.streamName && m.displayName !== data.displayName
+            );
+          
+            state.audienceLastSeen.delete(data.streamName);
+            renderAudienceStrip();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+            log(`Plateia: ${data.displayName} saiu — limpo em todos via broadcast`, 'info');
+            showToast(`${data.displayName} saiu da plateia`, 'leave');
+           
+            if (state.role === 'host') {
+                broadcastAudienceUpdate();
+            }
+        }
+    });
+
+   
+    state.channel.bind('client-stage-update', (data) => {
+        if (!data || !Array.isArray(data.stageMembers)) return;
+        log(`Stage-update recebido: ${data.stageMembers.length} membro(s) no palco`, 'info');
+       
+        if (data.accountId && state.role === 'audience' && data.accountId !== state.accountId) {
+            state.accountId = data.accountId;
+            log(`Account ID sincronizado do host: ${data.accountId}`, 'info');
+        }
+        syncStageFromRoster(data.stageMembers);
+    });
+
+
+    state.channel.bind('client-invite', (data) => {
+        if (!data) return;
+     
+        const isMyAudienceStream = data.targetStreamName === state.audienceStreamName;
+        const isMyLocalStream = state.localStreamName && data.targetStreamName === state.localStreamName;
+        if (!isMyAudienceStream && !isMyLocalStream) return;
+       
+        if (state.role !== 'audience') {
+            
+            sendInviteResponse(data.targetStreamName, false);
+            return;
+        }
+        
+        if (state.pendingInvite) return;
+        showInviteModal(data.fromHost, data.targetStreamName);
+    });
+
+   
+    state.channel.bind('client-invite-response', (data) => {
+        if (!data) return;
+        if (state.role !== 'host') return;
+        if (data.accepted) {
+            
+            if (!state.stageMembers.find(m => m.streamName === data.guestStreamName)) {
+                state.stageMembers.push({
+                    streamName: data.guestStreamName,
+                    displayName: data.displayName,
+                    role: 'guest'
+                });
+                log(`${data.displayName} aceitou o convite! Subiu no palco.`, 'ok');
+                showToast(`${data.displayName} subiu no palco!`, 'join');
+
+                syncStageFromRoster(state.stageMembers);
+                broadcastStageUpdate();
+                state.audienceMembers = state.audienceMembers.filter(m => m.streamName !== data.targetStreamName);
+                broadcastAudienceUpdate();
+                renderAudienceStrip();
+                if (state.activeTab === 'palco') renderPalcoTab();
+                if (state.activeTab === 'plateia') renderPlateiaTab();
+            }
+        } else {
+            log(`${data.displayName} recusou o convite`, 'warn');
+            showToast(`${data.displayName} recusou o convite`, 'leave');
+        }
+    });
+
+    state.channel.bind('client-leave-stage', (data) => {
+        if (!data) return;
+        if (state.role !== 'host') return;
+        const targetStreamName = data.guestStreamName || data.streamName;
+        if (!targetStreamName) return;
+        log(`${data.displayName} saiu do palco voluntariamente`, 'info');
+        const wasInStage = state.stageMembers.find(m => m.streamName === targetStreamName);
+        if (wasInStage) {
+            state.stageMembers = state.stageMembers.filter(m => m.streamName !== targetStreamName);
+
+            if (!state.audienceMembers.find(m => m.streamName === data.audienceStreamName)) {
+                state.audienceMembers.push({
+                    streamName: data.audienceStreamName,
+                    displayName: data.displayName
+                });
+            }
+
+            removeRemote(targetStreamName);
+            broadcastStageUpdate();
+            broadcastAudienceUpdate();
+            renderAudienceStrip();
+            if (state.activeTab === 'palco') renderPalcoTab();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+        }
+    });
+
+    state.channel.bind('client-kick-stage', (data) => {
+        if (!data) return;
+        if (!state.localStreamName) return;
+        if (data.targetStreamName !== state.localStreamName) return;
+        if (state.role !== 'guest') return;
+        log('Host te removeu do palco', 'warn');
+        showToast('Host te removeu do palco', 'kick');
+        returnToAudience(true);
+    });
+
+    // Chat
+    state.channel.bind('client-chat', (data) => {
+        if (!data || !data.from) return;
+        if (data.from === state.displayName) return;
+        addChatMessage(data.from, data.text, data.ts, false);
+    });
+
+    // Mic state
+    state.channel.bind('client-mute-state', (data) => {
+        if (!data) return;
+        const remote = state.remotes.get(data.streamName);
+        if (remote) {
+            remote.micMuted = !!data.micMuted;
+            remote.updateIndicators();
+            log(`${remote.displayName} mic ${data.micMuted ? 'MUTED' : 'UNMUTED'}`, 'info');
+        }
+    });
+
+    // Cam state
+    state.channel.bind('client-cam-state', (data) => {
+        if (!data) return;
+        const remote = state.remotes.get(data.streamName);
+        if (remote) {
+            remote.camOff = !!data.camOff;
+            remote.updateIndicators();
+            if (data.camOff && remote.videoEl) {
+                remote.videoEl.style.display = 'none';
+                const ph = remote.tileEl?.querySelector('.tile-placeholder');
+                if (ph) ph.style.display = 'flex';
+            }
+            log(`${remote.displayName} camera ${data.camOff ? 'OFF' : 'ON'}`, 'info');
+        }
+    });
+}
+
+function broadcastStageUpdate() {
+    if (!state.channel || state.role !== 'host') return;
+    try {
+        state.channel.trigger('client-stage-update', {
+            stageMembers: state.stageMembers,
+            hostDisplayName: state.displayName,
+            accountId: state.accountId
+        });
+        log(`Stage-update broadcast: ${state.stageMembers.length} membro(s)`, 'info');
+    } catch (err) {
+        log('client-stage-update trigger error: ' + err.message, 'err');
+    }
+}
+
+function broadcastAudienceUpdate() {
+    if (!state.channel || state.role !== 'host') return;
+    try {
+        state.channel.trigger('client-audience-update', {
+            audienceMembers: state.audienceMembers
+        });
+    } catch (err) {
+        log('client-audience-update trigger error: ' + err.message, 'err');
+    }
+}
+
+// ============================================================
+// WTC PRESENCE HEARTBEAT
+// ============================================================
+function startPresenceHeartbeat() {
+    if (state.role !== 'host') return;
+    stopPresenceHeartbeat();
+    // Ping a cada 10s
+    state.presenceTimers.ping = setInterval(() => {
+        if (!state.channel || state.role !== 'host') return;
+        try {
+            state.channel.trigger('client-presence-ping', { ts: Date.now() });
+        } catch(e) {}
+    }, 10000);
+    // Cleanup a cada 5s — remove stale members
+    state.presenceTimers.cleanup = setInterval(() => {
+        if (state.role !== 'host') return;
+        const now = Date.now();
+        const STALE_MS = 25000; // 25s sem pong = stale
+        let removed = [];
+        state.audienceLastSeen.forEach((ts, streamName) => {
+            if (now - ts > STALE_MS) {
+                removed.push(streamName);
+            }
+        });
+        if (removed.length > 0) {
+            const removedNames = [];
+            state.audienceMembers = state.audienceMembers.filter(m => {
+                if (removed.includes(m.streamName)) {
+                    removedNames.push(m.displayName);
+                    return false;
+                }
+                return true;
+            });
+            removed.forEach(s => state.audienceLastSeen.delete(s));
+            log(`🧹 Heartbeat: ${removed.length} membro(s) stale removido(s): ${removedNames.join(', ')}`, 'warn');
+            renderAudienceStrip();
+            if (state.activeTab === 'plateia') renderPlateiaTab();
+            // Re-broadcasta roster limpa para TODOS
+            broadcastAudienceUpdate();
+        }
+    }, 5000);
+    log('💚 Heartbeat iniciado (ping 10s, cleanup 25s)', 'info');
+}
+
+function stopPresenceHeartbeat() {
+    if (state.presenceTimers.ping) { clearInterval(state.presenceTimers.ping); state.presenceTimers.ping = null; }
+    if (state.presenceTimers.cleanup) { clearInterval(state.presenceTimers.cleanup); state.presenceTimers.cleanup = null; }
+    state.audienceLastSeen.clear();
+}
+
+function sendHostAnnounce() {
+    if (!state.channel || state.role !== 'host') return;
+    try {
+        state.channel.trigger('client-host-announce', {
+            hostDisplayName: state.displayName,
+            hostStreamName: state.localStreamName
+        });
+        log('Host-announce enviado — viewers aguardando devem re-anunciar', 'info');
+    } catch (err) {
+        log('client-host-announce trigger error: ' + err.message, 'err');
+    }
+}
+
+function sendAudienceJoin() {
+    if (!state.channel) return;
+    try {
+        state.channel.trigger('client-audience-join', {
+            streamName: state.audienceStreamName,
+            displayName: state.displayName
+        });
+        log('Announced audience-join', 'ok');
+    } catch (err) {
+        log('client-audience-join trigger error: ' + err.message, 'err');
+    }
+}
+
+function sendAudienceLeave(streamName) {
+    if (!state.channel) return;
+    const sName = streamName || state.audienceStreamName;
+    try {
+        state.channel.trigger('client-audience-leave', {
+            streamName: sName,
+            displayName: state.displayName
+        });
+    } catch (err) {}
+}
+
+function sendInvite(targetStreamName, targetName) {
+    if (!state.channel || state.role !== 'host') return;
+    try {
+        state.channel.trigger('client-invite', {
+            targetStreamName: targetStreamName,
+            targetName: targetName,
+            fromHost: state.displayName
+        });
+        log(`Convite enviado para ${targetName}`, 'info');
+        showToast(`Convite enviado para ${targetName}`, 'chat');
+    } catch (err) {
+        log('client-invite trigger error: ' + err.message, 'err');
+    }
+}
+
+function sendInviteResponse(targetStreamName, accepted) {
+    if (!state.channel) return;
+    const payload = {
+        targetStreamName: targetStreamName,
+        accepted: accepted,
+        displayName: state.displayName
+    };
+    if (accepted) {
+
+        if (!state.pendingGuestStreamName) {
+
+            state.pendingGuestStreamName = 'stage-' + state.roomId + '-guest-' + genShortId();
+            state.localStreamName = state.pendingGuestStreamName;
+        }
+        payload.guestStreamName = state.pendingGuestStreamName;
+    }
+    try {
+        state.channel.trigger('client-invite-response', payload);
+        log(`Invite response sent: ${accepted ? 'accepted' : 'declined'}`, 'info');
+    } catch (err) {
+        log('client-invite-response trigger error: ' + err.message, 'err');
+    }
+}
+
+function sendKickStage(targetStreamName) {
+    if (!state.channel || state.role !== 'host') return;
+    try {
+        state.channel.trigger('client-kick-stage', {
+            targetStreamName: targetStreamName
+        });
+        log('Kick enviado para ' + targetStreamName, 'warn');
+        showToast('Membro removido do palco', 'kick');
+        state.stageMembers = state.stageMembers.filter(m => m.streamName !== targetStreamName);
+        broadcastStageUpdate();
+        if (state.activeTab === 'palco') renderPalcoTab();
+    } catch (err) {
+        log('client-kick-stage trigger error: ' + err.message, 'err');
+    }
+}
+
+function broadcastMuteState() {
+    if (!state.channel || state.role === 'audience') return;
+    try {
+        state.channel.trigger('client-mute-state', {
+            streamName: state.localStreamName,
+            micMuted: state.micMuted
+        });
+    } catch(e) {}
+}
+
+function broadcastCamState() {
+    if (!state.channel || state.role === 'audience') return;
+    try {
+        state.channel.trigger('client-cam-state', {
+            streamName: state.localStreamName,
+            camOff: state.camOff
+        });
+    } catch(e) {}
+}
+
+// ============================================================
+// REMOTE MANAGEMENT
+// ============================================================
+function syncStageFromRoster(roster) {
+    const oldStreamNames = new Set(state.remotes.keys());
+    const newStreamNames = new Set(roster.map(m => m.streamName));
+
+    state.stageMembers = roster;
+
+    log(`syncStageFromRoster: ${roster.length} membros, localStreamName=${state.localStreamName || 'null'}, audienceStreamName=${state.audienceStreamName || 'null'}`, 'info');
+
+    // Add new remotes (subscribe), skip self
+    roster.forEach(member => {
+        if (member.streamName === state.localStreamName) {
+            log(`  skip self (localStreamName): ${member.displayName} (${member.streamName})`, 'info');
+            return; // skip self
+        }
+        if (member.streamName === state.audienceStreamName) {
+            log(`  skip self (audienceStreamName): ${member.displayName} (${member.streamName})`, 'info');
+            return; // skip self (defensive)
+        }
+
+        try {
+            const selfTileForStream = ui.stageGrid.querySelector(
+                '.tile.self[data-stream-name="' + CSS.escape(member.streamName) + '"]'
+            );
+            if (selfTileForStream) {
+                log(`  skip self (DOM .self tile): ${member.displayName} (${member.streamName})`, 'info');
+                return;
+            }
+        } catch(e) {}
+        if (!state.remotes.has(member.streamName)) {
+            addRemote(member.streamName, member.displayName, member.role);
+        } else {
+            // Update display name if changed
+            const r = state.remotes.get(member.streamName);
+            if (r.displayName !== member.displayName) {
+                r.displayName = member.displayName;
+                if (r.tileEl) {
+                    const nameSpan = r.tileEl.querySelector('.tile-name');
+                    if (nameSpan) {
+                        nameSpan.innerHTML = '<i class="ti ti-user"></i> ' + escapeHtml(member.displayName);
+                    }
+                    const phName = r.tileEl.querySelector('.tile-placeholder div:last-child');
+                    if (phName) phName.textContent = member.displayName;
+                }
+            }
+        }
+    });
+
+    oldStreamNames.forEach(streamName => {
+        if (!newStreamNames.has(streamName)) {
+            removeRemote(streamName);
+        }
+    });
+
+    renderStageGrid();
+    if (state.activeTab === 'palco') renderPalcoTab();
+    if (state.activeTab === 'plateia') renderPlateiaTab();
+    renderAudienceStrip();
+
+    if (!state.viewCountFetchOk) {
+        const fallback = state.audienceMembers.length + Math.max(0, state.stageMembers.length - 1);
+        ui.hdrViewerCount.textContent = fallback;
+    }
+}
+
+function addRemote(streamName, displayName, role) {
+    if (state.remotes.has(streamName)) return;
+
+    if (streamName === state.localStreamName) {
+        log('DEFESA: addRemote rejeitado para self streamName=' + streamName + ' (localStreamName). Skip.', 'warn');
+        return;
+    }
+    if (streamName === state.audienceStreamName) {
+        log('DEFESA: addRemote rejeitado para self streamName=' + streamName + ' (audienceStreamName). Skip.', 'warn');
+        return;
+    }
+
+    try {
+        const selfTileForStream = ui.stageGrid.querySelector(
+            '.tile.self[data-stream-name="' + CSS.escape(streamName) + '"]'
+        );
+        if (selfTileForStream) {
+            log('DEFESA v1.6: addRemote rejeitado — tile SELF existe no DOM para ' + streamName + ' (preserva câmera). Skip.', 'warn');
+            return;
+        }
+    } catch(e) {}
+    log('Adding remote: ' + displayName + ' (' + streamName + ') as ' + role, 'ok');
+
+    const remote = new RemoteParticipant(streamName, displayName, role);
+    state.remotes.set(streamName, remote);
+
+    const created = createTile(streamName, displayName, role, false);
+
+    if (!created) {
+        log('DEFESA v1.6: createTile retornou null para ' + streamName + ' — removendo do remotes map (não há tile)', 'warn');
+        state.remotes.delete(streamName);
+        return;
+    }
+    remote.tileEl = created.tile;
+    remote.videoEl = created.video;
+    remote.audioEl = created.audio;
+
+    renderStageGrid();
+    remote.subscribe();
+}
+
+function removeRemote(streamName) {
+    const remote = state.remotes.get(streamName);
+    if (!remote) return;
+    log('Removing remote: ' + remote.displayName, 'warn');
+    remote.close();
+    state.remotes.delete(streamName);
+    renderStageGrid();
+}
+
+// ============================================================
+// INVITE MODAL
+// ============================================================
+function showInviteModal(fromHost, targetStreamName) {
+    state.pendingInvite = { targetStreamName, fromHost };
+    ui.inviteHostName.textContent = fromHost || 'Host';
+    ui.inviteOverlay.style.display = 'flex';
+    log(`Convite recebido de ${fromHost}`, 'info');
+}
+
+function acceptInvite() {
+    if (!state.pendingInvite) return;
+    const { targetStreamName } = state.pendingInvite;
+
+    const newGuestStream = 'stage-' + state.roomId + '-guest-' + genShortId();
+    state.pendingGuestStreamName = newGuestStream;
+    state.localStreamName = newGuestStream;
+    log('Guest streamName reservado EARLY: ' + newGuestStream, 'info');
+    sendInviteResponse(targetStreamName, true);
+    hideInviteModal();
+    becomeGuest();
+}
+
+function declineInvite() {
+    if (!state.pendingInvite) return;
+    const { targetStreamName } = state.pendingInvite;
+    sendInviteResponse(targetStreamName, false);
+    hideInviteModal();
+    log('Convite recusado', 'warn');
+}
+
+function hideInviteModal() {
+    state.pendingInvite = null;
+    ui.inviteOverlay.style.display = 'none';
+}
+
+// ============================================================
+// STAGE OPERATIONS (role transitions)
+// ============================================================
+async function becomeGuest() {
+    log('Tornando-se GUEST — subindo no palco...', 'info');
+
+    if (state.localStream) {
+        try { state.localStream.getTracks().forEach(t => t.stop()); } catch(e){}
+        state.localStream = null;
+        log('becomeGuest: stale localStream limpo', 'info');
+    }
+    if (state.channel) {
+        sendAudienceLeave(state.audienceStreamName);
+    }
+    // Remove self from local audienceMembers
+    state.audienceMembers = state.audienceMembers.filter(m => m.streamName !== state.audienceStreamName);
+    renderAudienceStrip();
+    if (state.activeTab === 'plateia') renderPlateiaTab();
+
+    // Switch role
+    state.role = 'guest';
+
+    state.pendingGuestStreamName = null;
+
+    state.micMuted = false;
+    state.camOff = false;
+    state.videoEnabled = true;
+    state.audioEnabled = true;
+    state.localPublishActive = false;
+
+    ui.hdrRole.textContent = 'GUEST';
+    updateControlsForRole();
+
+    addSystemMessage('Você subiu no palco! Câmera/mic ativados.');
+
+    // Start publishing
+    await startPublish();
+
+    if (state.activeTab === 'palco') renderPalcoTab();
+}
+
+async function returnToAudience(fromKick) {
+    log('Saindo do palco, voltando para plateia...', 'warn');
+
+    const oldGuestStreamName = state.localStreamName;
+
+    if (state.channel && !fromKick) {
+        try {
+            state.channel.trigger('client-leave-stage', {
+                guestStreamName: oldGuestStreamName,
+                audienceStreamName: state.audienceStreamName,
+                displayName: state.displayName
+            });
+            log('client-leave-stage enviado para host (ANTES de audience-join)', 'info');
+        } catch (err) {
+            log('client-leave-stage trigger error: ' + err.message, 'err');
+        }
+    }
+
+    stopPublish();
+
+    state.role = 'audience';
+    state.localStreamName = null;
+    state.pendingGuestStreamName = null;
+    state.micMuted = false;
+    state.camOff = false;
+    state.videoEnabled = false;
+    state.audioEnabled = false;
+    state.localPublishActive = false;
+
+    ui.hdrRole.textContent = 'AUDIENCE';
+    updateControlsForRole();
+
+    state.stageMembers = state.stageMembers.filter(m => m.streamName !== oldGuestStreamName);
+
+    if (oldGuestStreamName) {
+        try {
+            const zombieTiles = ui.stageGrid.querySelectorAll(
+                '.tile[data-stream-name="' + CSS.escape(oldGuestStreamName) + '"]'
+            );
+            zombieTiles.forEach(t => {
+                log('Removendo tile zumbi do guest stream: ' + t.dataset.streamName, 'warn');
+                t.remove();
+            });
+        } catch(e) {
+            log('DOM sweep error: ' + e.message, 'warn');
+        }
+    }
+
+    if (oldGuestStreamName && state.remotes.has(oldGuestStreamName)) {
+        removeRemote(oldGuestStreamName);
+    }
+
+    sendAudienceJoin();
+
+    if (!fromKick) {
+        showToast('Você saiu do palco', 'leave');
+    }
+    addSystemMessage('Você voltou para a plateia. Agora está apenas assistindo.');
+
+    if (state.activeTab === 'palco') renderPalcoTab();
+    renderStageGrid();
+}
+
+function endLive() {
+    log('Encerrando live...', 'warn');
+    state.stageMembers = [];
+    broadcastStageUpdate();
+    sendAudienceLeave(state.localStreamName);
+    showToast('Live encerrada', 'leave');
+    setTimeout(() => leaveCall(), 600);
+}
+
+// ============================================================
+// VIEW COUNT
+// ============================================================
+function startViewCountPolling() {
+    if (state.viewCountTimer) clearInterval(state.viewCountTimer);
+    state.viewCountTimer = setInterval(fetchViewCount, 5000);
+    fetchViewCount();
+}
+
+async function fetchViewCount() {
+    let hostStreamName = null;
+    if (state.role === 'host') {
+        hostStreamName = state.localStreamName;
+    } else {
+        const hostMember = state.stageMembers.find(m => m.role === 'host');
+        if (hostMember) hostStreamName = hostMember.streamName;
+    }
+    if (!hostStreamName) {
+        // No host yet — fallback to roster count
+        const fallback = state.audienceMembers.length + Math.max(0, state.stageMembers.length - 1);
+        ui.hdrViewerCount.textContent = fallback;
+        state.viewCountFetchOk = false;
+        return;
+    }
+    try {
+        const url = `${SERVER_URL}/api/webrtc/view-count?accountId=${encodeURIComponent(state.accountId)}&streamName=${encodeURIComponent(hostStreamName)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        const count = data.viewCount || 0;
+        state.viewCount = count;
+        state.viewCountFetchOk = true;
+        ui.hdrViewerCount.textContent = count;
+    } catch (err) {
+        log('View-count fetch failed: ' + err.message + ' — usando contagem local', 'warn');
+        state.viewCountFetchOk = false;
+        const fallback = state.audienceMembers.length + Math.max(0, state.stageMembers.length - 1);
+        ui.hdrViewerCount.textContent = fallback;
+    }
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+function updateControlsForRole() {
+    if (state.role === 'audience') {
+        ui.btnMute.disabled = true;
+        ui.btnMute.classList.add('disabled');
+        ui.btnMute.title = 'Apenas o palco pode falar';
+        ui.btnCamera.disabled = true;
+        ui.btnCamera.classList.add('disabled');
+        ui.btnCamera.title = 'Apenas o palco pode ligar câmera';
+        ui.btnStage.style.display = 'none';
+    } else {
+        ui.btnMute.disabled = false;
+        ui.btnMute.classList.remove('disabled');
+        ui.btnMute.title = 'Microfone';
+        ui.btnCamera.disabled = false;
+        ui.btnCamera.classList.remove('disabled');
+        ui.btnCamera.title = 'Câmera';
+        if (state.role === 'host') {
+            ui.btnStage.style.display = 'flex';
+            ui.btnStage.classList.add('danger');
+            ui.btnStage.classList.remove('warning');
+            ui.btnStageLabel.textContent = 'Encerrar Live';
+            ui.btnStage.querySelector('.icon').innerHTML = '<i class="ti ti-player-stop"></i>';
+        } else if (state.role === 'guest') {
+            ui.btnStage.style.display = 'flex';
+            ui.btnStage.classList.add('warning');
+            ui.btnStage.classList.remove('danger');
+            ui.btnStageLabel.textContent = 'Sair do Palco';
+            ui.btnStage.querySelector('.icon').innerHTML = '<i class="ti ti-arrow-down"></i>';
+        }
+    }
+}
+
+function toggleMute() {
+    if (state.role === 'audience') return;
+    if (!state.localStream) return;
+    state.micMuted = !state.micMuted;
+    state.localStream.getAudioTracks().forEach(track => {
+        track.enabled = !state.micMuted;
+    });
+    ui.btnMute.classList.toggle('toggled-off', state.micMuted);
+    ui.btnMute.querySelector('.icon').innerHTML = state.micMuted ? '<i class="ti ti-microphone-off"></i>' : '<i class="ti ti-microphone"></i>';
+    log('Mic ' + (state.micMuted ? 'MUTED' : 'UNMUTED'), 'warn');
+    updateSelfTile();
+    broadcastMuteState();
+}
+
+function toggleCamera() {
+    if (state.role === 'audience') return;
+    if (!state.localStream) return;
+    state.camOff = !state.camOff;
+    state.localStream.getVideoTracks().forEach(track => {
+        track.enabled = !state.camOff;
+    });
+    ui.btnCamera.classList.toggle('toggled-off', state.camOff);
+    ui.btnCamera.querySelector('.icon').innerHTML = state.camOff ? '<i class="ti ti-camera-off"></i>' : '<i class="ti ti-camera"></i>';
+    log('Camera ' + (state.camOff ? 'OFF' : 'ON'), 'warn');
+    updateSelfTile();
+    broadcastCamState();
+}
+
+function toggleSidebar() {
+    state.sidebarVisible = !state.sidebarVisible;
+    ui.sidebar.classList.toggle('hidden', !state.sidebarVisible);
+    ui.btnToggleSidebar.classList.toggle('active', state.sidebarVisible);
+}
+
+function closeSidebar() {
+    state.sidebarVisible = false;
+    ui.sidebar.classList.add('hidden');
+    ui.btnToggleSidebar.classList.remove('active');
+}
+
+function switchTab(tabName) {
+    state.activeTab = tabName;
+    ui.tabBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    ui.tabChat.classList.toggle('active', tabName === 'chat');
+    ui.tabPlateia.classList.toggle('active', tabName === 'plateia');
+    ui.tabPalco.classList.toggle('active', tabName === 'palco');
+    if (tabName === 'plateia') renderPlateiaTab();
+    if (tabName === 'palco') renderPalcoTab();
+}
+
+function handleStageBtn() {
+    if (state.role === 'host') {
+        if (confirm('Encerrar a live para todos? Todos serão desconectados.')) endLive();
+    } else if (state.role === 'guest') {
+        if (confirm('Sair do palco e voltar para plateia?')) returnToAudience();
+    }
+}
+
+async function leaveCall() {
+    log('Saindo da live...', 'warn');
+    // WTC para heartbeat antes de tudo
+    stopPresenceHeartbeat();
+    if (state.role === 'audience') {
+        sendAudienceLeave(state.audienceStreamName);
+        setTimeout(() => { try { sendAudienceLeave(state.audienceStreamName); } catch(e){} }, 100);
+    } else if (state.role === 'guest' || state.role === 'host') {
+        // Stop publishing first
+        if (state.role === 'host') {
+            // Host leaving = end live for everyone
+            state.stageMembers = [];
+            broadcastStageUpdate();
+        }
+        sendAudienceLeave(state.localStreamName);
+        setTimeout(() => { try { sendAudienceLeave(state.localStreamName); } catch(e){} }, 100);
+        stopPublish();
+    }
+    state.remotes.forEach(r => r.close());
+    state.remotes.clear();
+    if (state.viewCountTimer) { clearInterval(state.viewCountTimer); state.viewCountTimer = null; }
+    if (state.channel) { try { state.channel.unbind(); } catch(e){} state.channel = null; }
+    if (state.pusher) { try { state.pusher.disconnect(); } catch(e){} state.pusher = null; }
+    state.stageMembers = [];
+    state.audienceMembers = [];
+    state.isJoined = false;
+    state.role = state.selectedRole;
+    state.localStreamName = null;
+    state.micMuted = false;
+    state.camOff = false;
+    state.localPublishActive = false;
+
+    hideInviteModal();
+
+    ui.app.classList.remove('active');
+    ui.loginOverlay.style.display = 'flex';
+    ui.stageGrid.innerHTML = '';
+    ui.audienceStrip.innerHTML = '';
+    ui.chatMessages.innerHTML = '';
+    ui.plateiaList.innerHTML = '';
+    ui.palcoList.innerHTML = '';
+    ui.hdrViewerCount.textContent = '0';
+    ui.stripCount.textContent = '0';
+    ui.btnJoin.disabled = false;
+    ui.btnJoin.querySelector('span').innerHTML = state.selectedRole === 'host'
+        ? '<i class="ti ti-rocket"></i> Criar Live'
+        : '<i class="ti ti-rocket"></i> Entrar na Plateia';
+    log('Saiu da live', 'ok');
+}
+
+// ============================================================
+// CHAT
+// ============================================================
+function sendChat() {
+    const text = ui.chatInput.value.trim();
+    if (!text || !state.channel) return;
+
+    const msg = {
+        from: state.displayName,
+        text: text,
+        ts: Date.now(),
+    };
+
+    try {
+        state.channel.trigger('client-chat', msg);
+    } catch (err) {
+        log('Chat trigger error: ' + err.message, 'err');
+    }
+
+    addChatMessage(msg.from, msg.text, msg.ts, true);
+    ui.chatInput.value = '';
+}
+
+function addChatMessage(from, text, ts, isSelf) {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-msg ' + (isSelf ? 'self' : 'other');
+    const time = new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    msgEl.innerHTML = `
+        <div class="from">${escapeHtml(from)}</div>
+        <div>${escapeHtml(text)}</div>
+        <div class="time">${time}</div>
+    `;
+    ui.chatMessages.appendChild(msgEl);
+    ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+function addSystemMessage(text) {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-msg system';
+    msgEl.textContent = text;
+    ui.chatMessages.appendChild(msgEl);
+    ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+// ============================================================
+// JOIN FLOW
+// ============================================================
+async function joinCall() {
+    const role = state.selectedRole;
+
+    let accountId, roomId, displayName, token, videoEnabled, audioEnabled;
+
+    if (role === 'host') {
+        accountId = ui.loginAccountId.value.trim();
+        roomId = ui.loginRoomId.value.trim();
+        displayName = ui.loginDisplayName.value.trim();
+        token = ui.loginToken.value.trim();
+        videoEnabled = ui.toggleVideo.checked;
+        audioEnabled = ui.toggleAudio.checked;
+        if (!accountId || !roomId || !displayName || !token) {
+            showLoginError('Preencha todos os campos');
+            return;
+        }
+        if (!videoEnabled && !audioEnabled) {
+            showLoginError('Ative câmera ou microfone');
+            return;
+        }
+    } else {
+        accountId = DEFAULT_ACCOUNT_ID;
+        roomId = ui.loginRoomIdAud.value.trim();
+        displayName = ui.loginDisplayNameAud.value.trim();
+        token = '';
+        videoEnabled = false;
+        audioEnabled = false;
+        if (!roomId || !displayName) {
+            showLoginError('Preencha todos os campos');
+            return;
+        }
+    }
+
+    ui.loginError.classList.remove('show');
+    ui.btnJoin.disabled = true;
+    ui.btnJoin.querySelector('span').innerHTML = '<i class="ti ti-hourglass-empty"></i> Conectando...';
+
+    state.role = role;
+    state.accountId = accountId;
+    state.roomId = roomId;
+    state.displayName = displayName;
+    state.token = token;
+    state.videoEnabled = videoEnabled;
+    state.audioEnabled = audioEnabled;
+    state.audienceStreamName = 'stage-' + roomId + '-view-' + hashStr(roomId + ':' + displayName);
+    if (role === 'host') {
+        state.localStreamName = 'stage-' + roomId + '-host-' + hashStr(roomId + ':' + displayName);
+        state.stageMembers = [{ streamName: state.localStreamName, displayName: state.displayName, role: 'host' }];
+    } else {
+        state.localStreamName = null;
+        state.stageMembers = [];
+    }
+
+    log('=== STAGE LIVE JOIN ===', 'info');
+    log('Role: ' + role, 'info');
+    log('Account: ' + accountId, 'info');
+    log('Room: ' + roomId, 'info');
+    log('Name: ' + displayName, 'info');
+    log('AudienceStream: ' + state.audienceStreamName, 'info');
+    if (role === 'host') log('HostStream: ' + state.localStreamName, 'info');
+
+    // Show app
+    ui.loginOverlay.style.display = 'none';
+    ui.app.classList.add('active');
+    ui.hdrRoomName.textContent = roomId;
+    ui.hdrRole.textContent = role.toUpperCase();
+    ui.hdrSelfName.textContent = displayName;
+    state.isJoined = true;
+
+    updateControlsForRole();
+    renderStageGrid();
+    renderAudienceStrip();
+    if (state.activeTab === 'plateia') renderPlateiaTab();
+    if (state.activeTab === 'palco') renderPalcoTab();
+
+    if (isMobile()) {
+        state.sidebarVisible = false;
+        ui.sidebar.classList.add('hidden');
+        ui.btnToggleSidebar.classList.remove('active');
+        log('Mobile detectado — sidebar oculto. Toque 💬 para abrir.', 'info');
+    }
+
+    addSystemMessage('Conectando à live ' + roomId + '...');
+
+    setupPusher();
+
+    if (role === 'host') {
+	
+        addSystemMessage('Verificando se já existe um host na sala...');
+        const existingHost = await waitForExistingHost(1500);
+        if (existingHost) {
+            log('Já existe um host nesta sala: ' + existingHost.displayName + ' — bloqueando join como host', 'err');
+            showLoginError('Já existe um host nesta sala (' + existingHost.displayName + '). Entre como Plateia para assistir.');
+            ui.btnJoin.disabled = false;
+            ui.btnJoin.querySelector('span').innerHTML = '<i class="ti ti-rocket"></i> Criar Live';
+            ui.app.classList.remove('active');
+            ui.loginOverlay.style.display = 'flex';
+            state.isJoined = false;
+            if (state.channel) { try { state.channel.unbind(); } catch(e){} state.channel = null; }
+            if (state.pusher) { try { state.pusher.disconnect(); } catch(e){} state.pusher = null; }
+            return;
+        }
+        log('Nenhum host existente — iniciando como host', 'ok');
+
+        updateSelfTile();
+
+        await startPublish();
+
+    } else {
+        log('Aguardando palco...', 'info');
+        addSystemMessage('Aguardando o host iniciar a live...');
+    }
+
+    // WTC iniciar heartbeat de presença (host faz ping, viewers pong)
+    startPresenceHeartbeat();
+
+    // Start viewer count polling
+    startViewCountPolling();
+
+    log('Join flow complete', 'ok');
+}
+
+// ============================================================
+// HOST COLLISION DETECTION — prevent 2 hosts in same room
+// ============================================================
+function waitForExistingHost(timeoutMs) {
+    return new Promise((resolve) => {
+        let resolved = false;
+        const finish = (result) => {
+            if (resolved) return;
+            resolved = true;
+            if (state.channel) {
+                try { state.channel.unbind('client-stage-update', onStageUpdate); } catch(e) {}
+            }
+            resolve(result);
+        };
+        const onStageUpdate = (data) => {
+            if (!data || !Array.isArray(data.stageMembers)) return;
+            const hostMember = data.stageMembers.find(m => m.role === 'host');
+
+            if (hostMember && hostMember.streamName !== state.localStreamName) {
+                finish({ displayName: hostMember.displayName || 'host', streamName: hostMember.streamName });
+            }
+        };
+        if (!state.channel) {
+
+            setTimeout(() => finish(null), timeoutMs);
+            return;
+        }
+        state.channel.bind('client-stage-update', onStageUpdate);
+
+        try {
+            state.channel.trigger('client-host-query', { from: state.displayName, room: state.roomId });
+        } catch(e) {}
+        setTimeout(() => finish(null), timeoutMs);
+    });
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+ui.roleBtns.forEach(btn => {
+    btn.addEventListener('click', () => selectRole(btn.dataset.role));
+});
+
+ui.btnJoin.addEventListener('click', joinCall);
+
+ui.btnMute.addEventListener('click', toggleMute);
+ui.btnCamera.addEventListener('click', toggleCamera);
+ui.btnToggleSidebar.addEventListener('click', toggleSidebar);
+ui.btnSidebarClose.addEventListener('click', closeSidebar);
+ui.btnStage.addEventListener('click', handleStageBtn);
+ui.btnLeave.addEventListener('click', leaveCall);
+
+ui.tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+ui.btnChatSend.addEventListener('click', sendChat);
+ui.chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChat();
+    }
+});
+
+ui.btnAcceptInvite.addEventListener('click', acceptInvite);
+ui.btnDeclineInvite.addEventListener('click', declineInvite);
+
+ui.btnLogsToggle.addEventListener('click', () => {
+    ui.logsPanel.classList.toggle('show');
+});
+ui.btnLogsClear.addEventListener('click', () => {
+    ui.logsContent.innerHTML = '';
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (!state.isJoined) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'm' || e.key === 'M') toggleMute();
+    else if (e.key === 'v' || e.key === 'V') toggleCamera();
+    else if (e.key === 'c' || e.key === 'C') toggleSidebar();
+});
+
+function doLeaveCleanup() {
+    if (!state.isJoined) return;
+    try {
+        const leaveStream = (state.role === 'audience')
+            ? state.audienceStreamName
+            : state.localStreamName;
+
+        sendAudienceLeave(leaveStream);
+
+        setTimeout(() => { try { sendAudienceLeave(leaveStream); } catch(e){} }, 100);
+    } catch(e) {}
+    stopPresenceHeartbeat();
+    state.remotes.forEach(r => r.close());
+    if (state.localStream) state.localStream.getTracks().forEach(t => t.stop());
+    if (state.localPc) state.localPc.close();
+    if (state.localWs) state.localWs.close();
+    if (state.pusher) state.pusher.disconnect();
+    state.isJoined = false;
+}
+
+window.addEventListener('beforeunload', doLeaveCleanup);
+window.addEventListener('pagehide', doLeaveCleanup);
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && state.isJoined) {
+
+        try {
+            const leaveStream = (state.role === 'audience')
+                ? state.audienceStreamName
+                : state.localStreamName;
+            sendAudienceLeave(leaveStream);
+        } catch(e) {}
+    }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    let reasonStr;
+    try {
+        const r = event.reason;
+        if (r instanceof Error) reasonStr = r.message;
+        else if (typeof r === 'object' && r !== null) reasonStr = JSON.stringify(r);
+        else reasonStr = String(r);
+    } catch (e) { reasonStr = String(event.reason); }
+    if (reasonStr.includes('not found') || reasonStr.includes('"err"')) {
+        log('Stream não encontrado no server (host pode não estar ativo): ' + reasonStr, 'warn');
+    } else {
+        log('Promise rejeitada: ' + reasonStr, 'err');
+    }
+    event.preventDefault();
+});
+
+// ============================================================
+// INITIAL
+// ============================================================
+selectRole('host'); // default
+log('=== STAGE LIVE v2.0 ===', 'info');
+log('SERVER_URL: ' + SERVER_URL, 'info');
+log('Pusher Key: ' + PUSHER_KEY + ', Cluster: ' + PUSHER_CLUSTER, 'info');
+log('StreamName patterns: stage-{roomId}-(host|guest|view)-{shortId}', 'info');
+log('Cliente limpo: Pusher nativo. WTC é interno do server.', 'info');
+log('Sistema pronto. Selecione o papel e entre.', 'ok');
+</script>
+</body>
+</html>

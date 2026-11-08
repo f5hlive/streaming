@@ -1,0 +1,38 @@
+<html>
+  <head>
+    <!-- Import the Millicast JS SDK -->
+
+    <script src="https://sdk.f5hlive.com.br/stream-sdk/ws/v2/webtrccast.umd.js"></script>
+  </head>
+
+  <body>
+    <video id="my-video" controls autoplay muted></video>
+
+    <script type="module">
+	   window.StreamCluster = "director-ca";
+      // Get media element
+      const video = document.getElementById('my-video')
+      // Set the credentials for the streaming
+      const yourStreamName = "test123"
+      const yourStreamAccountId = "a3RD6P"
+	  
+     
+      // Define callback for generate new token
+      const tokenGenerator = () => millicast.Director.getSubscriber({
+        streamName: yourStreamName,
+        streamAccountId: yourStreamAccountId
+
+      })
+
+      // Create a new instance
+      const millicastView = new millicast.View(undefined, tokenGenerator, video)
+
+      // Start connection to publisher
+      try {
+        await millicastView.connect()
+      } catch (e) {
+        console.log('Connection failed, handle error', e)
+      }
+    </script>
+  </body> 
+</html> 
