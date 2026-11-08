@@ -6,45 +6,59 @@ Inclui SDKs prontos em HTML standalone — basta abrir no navegador, configurar 
 
 São exemplos avançados, prontos para testes e integrações.
 
-Credenciais para teste.
+## Credenciais para teste
 
-Atenção: essas credenciais são apenas para testes, não é recomendado o uso para produção; o token sempre deve ser passado via backend seguro.
+Inclui SDKs prontos em HTML standalone — basta abrir no navegador, configurar as credenciais e transmitir.
 
-As credenciais funcionam em ambos, WebRTC/RTMP.
+São exemplos avançados, prontos para testes e integrações.
 
-API de testes não é recomendada usar em produção em projetos reais.
+### ⚠️ Atenção
 
-Streaming Video
-Accountid: a3RD6P
-Token: 56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa
-Publisher:10
-Views:20
-Consumo Minutos:10.000
-Bitrate:2.5
-Record Live: Não (Plano)
-Cluster Padrão: director-ca (opcional de acordo com plano)
+Essas credenciais são apenas para testes. Não é recomendado utilizá-las em produção. O token sempre deve ser passado via backend seguro.
 
-Streaming Audio
-Accountid: g9FP3A
-Token: k9x2m471wb8p2q94jsfgtbyz36819r50432m652v8pqr1op7w9r2a4j553bdrntf
-Publisher:10
-Views:20
-Consumo Minutos:10.000
-Record Live: Não (Plano)
+As credenciais funcionam em ambos os protocolos: WebRTC e RTMP.
 
-API de testes não é recomendada usar em produção em projetos reais.
+---
 
-Pusher Realtime:
-App ID: 2437524
-API Key: 11215d6822a0854b4550
-API Secret: 704a78fd977a85392f52
-Cluster Padrão: custom (opcional de acordo com plano)
-Máx. domínios:100
-Máx. conexões Simultâneas: 100
-Máx. mensagens: 50.000 (reseta todos os dias)
-Sistema de mensagens (eventos) um evento consome uma mensagem independente da quantidade de caracteres. 
+### Streaming Video
 
-Se desejar, poderá gerar novas credenciais Free a partir do site.
+- **Account ID:** `a3RD6P`
+- **Token:** `56234289apd4a487asgddatq85789h40032n542p2wer9op1w3r7a1j653aerbsa`
+- **Publisher:** 10
+- **Views:** 20
+- **Consumo de minutos:** 10.000
+- **Bitrate:** 2.5
+- **Record Live:** Não (Plano)
+- **Cluster padrão:** `director-ca` (opcional de acordo com o plano)
+
+---
+
+### Streaming Audio
+
+- **Account ID:** `g9FP3A`
+- **Token:** `k9x2m471wb8p2q94jsfgtbyz36819r50432m652v8pqr1op7w9r2a4j553bdrntf`
+- **Publisher:** 10
+- **Views:** 20
+- **Consumo de minutos:** 10.000
+- **Record Live:** Não (Plano)
+
+---
+
+### Pusher Realtime
+
+- **App ID:** `2437524`
+- **API Key:** `11215d6822a0854b4550`
+- **API Secret:** `704a78fd977a85392f52`
+- **Cluster padrão:** `custom` (opcional de acordo com o plano)
+- **Máximo de domínios:** 100
+- **Máximo de conexões simultâneas:** 100
+- **Máximo de mensagens:** 50.000 (reseta todos os dias)
+
+Cada evento enviado consome uma mensagem, independentemente da quantidade de caracteres.
+
+Se desejar, poderá gerar novas credenciais Free diretamente pelo site.
+
+---
 
 > O servidor detecta automaticamente o tipo de stream pelas credenciais utilizadas. Não é necessário — nem recomendado — configurar modos de transmissão no client.
 
@@ -189,37 +203,70 @@ const pusher = new Pusher('62c3590ede33abc376ee', { cluster: 'custom' });
 
 Todos os SDKs já vêm com credenciais de demonstração pré-preenchidas — abra o arquivo, clique no engrenagem de configurações e troque pelo seu `host`, `token`, `account` e `streamName`.
 
-Modos de utilização que APIs suportam.
+## Modos de utilização que as APIs suportam
 
-Video Call
+### Video Call
+
 Chamadas de vídeo solo peer-to-peer.
-Ideal para apps ou plataformas que necessitam de chamadas de vídeo.
 
-Voz Call
+Ideal para aplicativos ou plataformas que necessitam de chamadas de vídeo.
+
+---
+
+### Voz Call
+
 Chamadas de áudio solo peer-to-peer.
-Ideal para apps ou plataformas que necessitam de chamadas de áudio.
 
-Live Stream Solo
-Salas de vídeo + áudio.
-Live Solo de video com público assistindo
-Ideal para apps ou plataformas que necessitam de lives ao vivo, estilo YouTube, Twitch, Bigo, outros apps e sites. 
+Ideal para aplicativos ou plataformas que necessitam de chamadas de áudio.
 
-Live Stream Solo
-Salas de áudio
+---
+
+### Live Stream Solo — Vídeo
+
+**Salas de vídeo + áudio.**
+
+Live solo de vídeo com público assistindo.
+
+Ideal para aplicativos e plataformas que necessitam de lives ao vivo, no estilo YouTube, Twitch, Bigo e outros aplicativos e sites.
+
+---
+
+### Live Stream Solo — Áudio
+
+**Salas de áudio.**
+
 Live solo de áudio com público ouvinte.
-Ideal para apps ou plataformas que necessitam de lives ao vivo, alguns apps, salas de áudio. 
 
-Live Stream Multe
-Salas de vídeo + áudio.
-Live de vídeo com público assistindo ou muitas calls em reuniões.
-Ideal para apps ou plataformas que necessitam de lives ao vivo, estilo Bigo, Meet, Zoom, outros apps e sites. 
+Ideal para aplicativos e plataformas que necessitam de transmissões ao vivo e salas de áudio.
 
-Live Stream Multe
-Salas de áudio
-Live de áudio com público ouvinte ou muitas calls em reuniões com apenas áudio.
-Ideal para apps ou plataformas que necessitam de lives ao vivo, com muitos participantes, estilo alguns apps de salas de áudio. 
+---
 
-Ideias extras:
-Lives, PK, estilos, apps.
-Lives com convidados em janelas.
-API sem limites para a sua imaginação.
+### Live Stream Multi — Vídeo
+
+**Salas de vídeo + áudio.**
+
+Live de vídeo com público assistindo ou múltiplas chamadas em reuniões.
+
+Ideal para aplicativos e plataformas no estilo Bigo, Meet, Zoom e outros aplicativos e sites.
+
+---
+
+### Live Stream Multi — Áudio
+
+**Salas de áudio.**
+
+Live de áudio com público ouvinte ou múltiplas chamadas em reuniões somente com áudio.
+
+Ideal para aplicativos e plataformas que necessitam de muitos participantes, no estilo de aplicativos de salas de áudio.
+
+---
+
+## Ideias extras
+
+- Lives
+- PK
+- Estilos personalizados
+- Aplicativos de transmissão
+- Lives com convidados em janelas
+
+**API sem limites para a sua imaginação.**
