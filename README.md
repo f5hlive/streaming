@@ -181,7 +181,7 @@ Atualização de status de live/chat em tempo real via cliente Pusher-compatíve
 ```
 
 ```js
-const pusher = new Pusher('62c3590ede33abc376ee', { cluster: 'custom' });
+const pusher = new Pusher('11215d6822a0854b4550', { cluster: 'custom' });
 ```
 
 **Importante:** use exatamente essa config mínima — o SDK resolve host, porta e transporte sozinho. Nunca adicione `wsHost`, `wssPort`, `pusherHost`, `enabledTransports` ou `forceTLS`.
